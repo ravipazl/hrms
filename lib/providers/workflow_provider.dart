@@ -11,6 +11,10 @@ import '../services/employee_api_service.dart';
 class WorkflowProvider with ChangeNotifier {
   final WorkflowApiService _apiService = WorkflowApiService();
   final EmployeeApiService _employeeApiService = EmployeeApiService();
+  
+  // ✅ FIX: Counters to ensure unique IDs
+  static int _nodeIdCounter = 0;
+  static int _edgeIdCounter = 0;
 
   // Template data
   WorkflowTemplate _template = WorkflowTemplate(
@@ -268,9 +272,10 @@ class WorkflowProvider with ChangeNotifier {
         ? _getColorForOutcome(outcomeType ?? 'default')
         : const Color(0xFF3B82F6);
 
-    // Create new node
+    // Create new node with guaranteed unique ID
+    _nodeIdCounter++;
     final newNode = WorkflowNode(
-      id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}',
+      id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}-$_nodeIdCounter',
       type: uiNodeType,
       position: Offset(baseX, baseY),
       data: WorkflowNodeData(
@@ -424,8 +429,10 @@ class WorkflowProvider with ChangeNotifier {
       print('      - Edge condition: $condition');
     }
 
+    // Create edge with guaranteed unique ID
+    _edgeIdCounter++;
     final newEdge = WorkflowEdge(
-      id: 'edge-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'edge-${DateTime.now().millisecondsSinceEpoch}-$_edgeIdCounter',
       source: _connectionSource!,
       target: targetNodeId,
       label: label,

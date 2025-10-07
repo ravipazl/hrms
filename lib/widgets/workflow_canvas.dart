@@ -106,7 +106,8 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
               ),
               if (!widget.readonly)
                 ...widget.edges.map((edge) => _buildEdgeDeleteButton(edge)),
-              ...widget.nodes.map((node) => _buildNode(node)),
+              // ✅ FIX: Add keys to prevent widget confusion during rebuilds
+              ...widget.nodes.map((node) => _buildNode(node, key: ValueKey(node.id))),
             ],
           ),
         ),
@@ -114,7 +115,7 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
     );
   }
 
-  Widget _buildNode(wf.WorkflowNode node) {
+  Widget _buildNode(wf.WorkflowNode node, {required Key key}) {
     final isApprovalNode = node.type == 'approval' || node.type == 'interview' || node.type == 'panelist';
     final isOutcomeNode = node.type == 'outcome';
     final isConnectionSource = widget.connectionSource == node.id;
@@ -153,10 +154,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
     }
 
     return Positioned(
+      key: key,  // ✅ FIX: Unique key to track this widget
       left: node.position.dx,
       top: node.position.dy,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        // ✅ FIX: Allow child GestureDetectors (connection targets) to receive taps
+        behavior: HitTestBehavior.deferToChild,
         // ✅ FIX: Store BOTH node position AND click offset
         onPanStart: widget.connectionMode || widget.readonly ? null : (details) {
           setState(() {
@@ -174,7 +177,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
           print('   - Mouse global: ${details.globalPosition}');
         },
         onPanUpdate: widget.connectionMode || widget.readonly ? null : (details) {
-          if (_draggedNodeId == node.id && _dragStartMousePos != null && _nodeStartPosition != null) {
+          // ✅ CRITICAL FIX: Only process if THIS node is being dragged
+          if (_draggedNodeId != node.id) {
+            return; // Wrong node, ignore this update
+          }
+          
+          if (_dragStartMousePos != null && _nodeStartPosition != null) {
             final distance = (details.globalPosition - _dragStartMousePos!).distance;
             
             // Only activate drag mode if moved beyond threshold
@@ -363,34 +371,43 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                 // Target indicator in connection mode
                 if (!widget.readonly && widget.connectionMode && widget.connectionSource != node.id)
                   Positioned(
-                    left: -14,
-                    top: nodeHeight / 2 - 14,
+                    left: -20,  // ✅ FIX: More accessible position
+                    top: nodeHeight / 2 - 20,
                     child: GestureDetector(
+                      // ✅ FIX: Explicit behavior to ensure tap is received
+                      behavior: HitTestBehavior.opaque,
                       onTap: () {
+                        print('🟢 Connection target tapped: ${node.data.label}');
                         widget.onCompleteConnection?.call(node.id);
                       },
                       child: MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade500,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
+                          width: 40,  // ✅ FIX: Larger clickable area
+                          height: 40, // ✅ FIX: Larger clickable area
+                          alignment: Alignment.center,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade500,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.green.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.circle,
+                                color: Colors.white,
+                                size: 10,
                               ),
-                            ],
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.circle,
-                              color: Colors.white,
-                              size: 10,
                             ),
                           ),
                         ),

@@ -1,0 +1,464 @@
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
+import '../models/workflow_template.dart';
+import '../models/workflow_node.dart';
+import '../models/workflow_edge.dart';
+import '../services/workflow_api_service.dart';
+import '../services/employee_api_service.dart';
+import '../widgets/dialogs/node_edit_dialog.dart';
+
+class WorkflowProvider with ChangeNotifier {
+  final WorkflowApiService _apiService = WorkflowApiService();
+  final EmployeeApiService _employeeApiService = EmployeeApiService();
+
+  // Template data
+  WorkflowTemplate _template = WorkflowTemplate(
+    name: '',
+    description: '',
+    stage: '',
+    nodes: [],
+    edges: [],
+  );
+
+  // Available data from database
+  List<WorkflowStage> _availableStages = [];
+  List<DatabaseNode> _availableNodeTypes = [];
+  List<StageNodeConstraint> _stageConstraints = [];
+
+  // UI state
+  bool _loading = false;
+  bool _saving = false;
+  String? _error;
+  WorkflowStage? _selectedStage;
+  String? _selectedNodeId;
+  bool _connectionMode = false;
+  String? _connectionSource;
+  
+  // Employee data
+  List<Employee> _availableEmployees = [];
+  bool _loadingEmployees = false;
+
+  // Getters
+  WorkflowTemplate get template => _template;
+  List<WorkflowStage> get availableStages => _availableStages;
+  List<DatabaseNode> get availableNodeTypes => _availableNodeTypes;
+  List<StageNodeConstraint> get stageConstraints => _stageConstraints;
+  bool get loading => _loading;
+  bool get saving => _saving;
+  String? get error => _error;
+  WorkflowStage? get selectedStage => _selectedStage;
+  String? get selectedNodeId => _selectedNodeId;
+  bool get connectionMode => _connectionMode;
+  String? get connectionSource => _connectionSource;
+  List<Employee> get availableEmployees => _availableEmployees;
+  bool get loadingEmployees => _loadingEmployees;
+
+  /// Initialize workflow data
+  Future<void> initialize() async {
+    _loading = true;
+    notifyListeners();
+
+    try {
+      // Load stages
+      _availableStages = await _apiService.loadStages();
+      
+      // Load node types
+      _availableNodeTypes = await _apiService.loadAvailableNodes();
+      
+      // Load employees
+      await loadEmployees();
+
+      // Set default stage if available
+      if (_availableStages.isNotEmpty && _selectedStage == null) {
+        _selectedStage = _availableStages.first;
+        _template = _template.copyWith(
+          stage: _selectedStage!.name,
+          selectedStage: _selectedStage,
+        );
+        
+        // Load constraints for default stage
+        await loadStageConstraints(_selectedStage!.id);
+      }
+
+      _error = null;
+    } catch (e) {
+      _error = 'Failed to initialize: $e';
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load employees from API
+  Future<void> loadEmployees() async {
+    _loadingEmployees = true;
+    notifyListeners();
+    
+    try {
+      _availableEmployees = await _employeeApiService.loadEmployees();
+      print('Loaded ${_availableEmployees.length} employees');
+    } catch (e) {
+      print('Failed to load employees: $e');
+      _availableEmployees = [];
+    } finally {
+      _loadingEmployees = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load template by ID
+  Future<void> loadTemplate(int templateId) async {
+    _loading = true;
+    notifyListeners();
+
+    try {
+      _template = await _apiService.loadWorkflowTemplate(templateId);
+      _selectedStage = _template.selectedStage;
+      
+      if (_selectedStage != null) {
+        await loadStageConstraints(_selectedStage!.id);
+      }
+      
+      _error = null;
+    } catch (e) {
+      _error = 'Failed to load template: $e';
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load stage constraints
+  Future<void> loadStageConstraints(int stageId) async {
+    try {
+      _stageConstraints = await _apiService.loadStageNodes(stageId);
+      
+      // Auto-add required nodes
+      _autoAddRequiredNodes();
+      
+      notifyListeners();
+    } catch (e) {
+      print('Failed to load stage constraints: $e');
+    }
+  }
+
+  /// Auto-add required nodes (min_count = 1, max_count = 1)
+  void _autoAddRequiredNodes() {
+    final requiredConstraints = _stageConstraints
+        .where((c) => c.minCount == 1 && c.maxCount == 1)
+        .toList();
+
+    for (var constraint in requiredConstraints) {
+      final exists = _template.nodes.any(
+        (node) => node.data.dbNodeId == constraint.node.id,
+      );
+
+      if (!exists) {
+        addNode(constraint.node, isRequired: true);
+      }
+    }
+  }
+
+  /// Update template info
+  void updateTemplateInfo({
+    String? name,
+    String? description,
+    int? department,
+    bool? isGlobalDefault,
+  }) {
+    _template = _template.copyWith(
+      name: name ?? _template.name,
+      description: description ?? _template.description,
+      department: department ?? _template.department,
+      isGlobalDefault: isGlobalDefault ?? _template.isGlobalDefault,
+    );
+    notifyListeners();
+  }
+
+  /// Change workflow stage
+  Future<void> changeStage(WorkflowStage stage) async {
+    if (stage.id == _selectedStage?.id) return;
+
+    // If nodes exist, clear them (stage change warning should be handled in UI)
+    _template = _template.copyWith(
+      stage: stage.name,
+      selectedStage: stage,
+      nodes: [],
+      edges: [],
+    );
+    
+    _selectedStage = stage;
+    await loadStageConstraints(stage.id);
+    notifyListeners();
+  }
+
+  /// Add node to workflow
+  void addNode(DatabaseNode dbNode, {bool isRequired = false}) {
+    // Check max count
+    final constraint = _stageConstraints.firstWhere(
+      (c) => c.node.id == dbNode.id,
+      orElse: () => StageNodeConstraint(
+        id: 0,
+        stage: 0,
+        node: dbNode,
+        minCount: 0,
+        maxCount: 1,
+        stageName: '',
+        nodeName: '',
+        nodeType: '',
+      ),
+    );
+
+    final existingCount = _template.nodes
+        .where((n) => n.data.dbNodeId == dbNode.id)
+        .length;
+
+    if (existingCount >= constraint.maxCount) {
+      _error = 'Cannot add more ${dbNode.displayName} nodes. Maximum ${constraint.maxCount} allowed.';
+      notifyListeners();
+      return;
+    }
+
+    // Determine position - Better positioning logic
+    final isOutcomeNode = dbNode.type == 'Stop';
+    
+    // Calculate position based on existing nodes of same type
+    final sameTypeNodes = _template.nodes.where((n) => 
+      (isOutcomeNode && n.type == 'outcome') || 
+      (!isOutcomeNode && n.type != 'outcome')
+    ).toList();
+    
+    final baseX = 200.0 + (sameTypeNodes.length * 250.0); // More spacing
+    final baseY = isOutcomeNode ? 480.0 : 200.0; // Outcome nodes lower
+
+    // Determine UI node type
+    final uiNodeType = dbNode.type == 'Stop' ? 'outcome' : 'approval';
+    
+    // Determine outcome type for Stop nodes
+    String? outcomeType;
+    if (dbNode.type == 'Stop') {
+      const outcomeMapping = {
+        2: 'approved',
+        3: 'hold',
+        4: 'rejected',
+      };
+      outcomeType = outcomeMapping[dbNode.id] ?? 'default';
+    }
+
+    // Get color
+    final color = uiNodeType == 'outcome'
+        ? _getColorForOutcome(outcomeType ?? 'default')
+        : const Color(0xFF3B82F6);
+
+    // Create new node
+    final newNode = WorkflowNode(
+      id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}',
+      type: uiNodeType,
+      position: Offset(baseX, baseY),
+      data: WorkflowNodeData(
+        label: '${dbNode.displayName} ${existingCount + 1}',
+        title: '${dbNode.displayName} ${existingCount + 1}',
+        color: color,
+        stepOrder: existingCount + 1,
+        dbNodeId: dbNode.id,
+        nodeType: dbNode.name,
+        username: 'user',
+        userId: 'user',
+        comment: '${dbNode.displayName} step',
+        outcome: outcomeType,
+        isRequired: isRequired,
+      ),
+    );
+
+    final updatedNodes = List<WorkflowNode>.from(_template.nodes)..add(newNode);
+    _template = _template.copyWith(nodes: updatedNodes);
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Update node position
+  void updateNodePosition(String nodeId, Offset newPosition) {
+    final updatedNodes = _template.nodes.map((node) {
+      if (node.id == nodeId) {
+        return node.copyWith(position: newPosition);
+      }
+      return node;
+    }).toList();
+
+    _template = _template.copyWith(nodes: updatedNodes);
+    notifyListeners();
+  }
+
+  /// Update node data
+  void updateNodeData(String nodeId, WorkflowNodeData newData) {
+    final updatedNodes = _template.nodes.map((node) {
+      if (node.id == nodeId) {
+        return node.copyWith(data: newData);
+      }
+      return node;
+    }).toList();
+
+    _template = _template.copyWith(nodes: updatedNodes);
+    notifyListeners();
+  }
+
+  /// Delete node
+  void deleteNode(String nodeId) {
+    final updatedNodes = _template.nodes.where((n) => n.id != nodeId).toList();
+    final updatedEdges = _template.edges
+        .where((e) => e.source != nodeId && e.target != nodeId)
+        .toList();
+
+    _template = _template.copyWith(
+      nodes: updatedNodes,
+      edges: updatedEdges,
+    );
+    notifyListeners();
+  }
+
+  /// Start connection mode
+  void startConnection(String sourceNodeId) {
+    _connectionMode = true;
+    _connectionSource = sourceNodeId;
+    notifyListeners();
+  }
+
+  /// Complete connection - Exit connection mode after each connection
+  void completeConnection(String targetNodeId) {
+    print('🔗 completeConnection called');
+    print('   - targetNodeId: $targetNodeId');
+    print('   - _connectionMode: $_connectionMode');
+    print('   - _connectionSource: $_connectionSource');
+    
+    if (!_connectionMode || _connectionSource == null) return;
+    
+    // Don't connect to self
+    if (_connectionSource == targetNodeId) {
+      print('   ⚠️ Trying to connect to self, ignoring');
+      return;
+    }
+
+    // Check if this specific connection already exists
+    final exists = _template.edges.any(
+      (e) => e.source == _connectionSource && e.target == targetNodeId,
+    );
+
+    if (exists) {
+      print('   ⚠️ Connection already exists');
+    } else {
+      // Determine connection label
+      final targetNode = _template.nodes.firstWhere((n) => n.id == targetNodeId);
+      String label = 'Proceed';
+      
+      if (targetNode.type == 'outcome') {
+        label = targetNode.data.outcome?.toUpperCase() ?? 'PROCEED';
+      }
+
+      final newEdge = WorkflowEdge(
+        id: 'edge-${DateTime.now().millisecondsSinceEpoch}',
+        source: _connectionSource!,
+        target: targetNodeId,
+        label: label,
+        type: 'straight',
+        data: {'condition': label.toLowerCase()},
+      );
+
+      final updatedEdges = List<WorkflowEdge>.from(_template.edges)..add(newEdge);
+      _template = _template.copyWith(edges: updatedEdges);
+      
+      print('   ✅ Connection created: $_connectionSource -> $targetNodeId');
+      print('   ✅ Total edges now: ${updatedEdges.length}');
+    }
+
+    // ✅ FIX: Exit connection mode after each connection
+    // User must click blue circle again to create another connection
+    print('   🔄 EXITING connection mode');
+    _connectionMode = false;
+    _connectionSource = null;
+    print('   - _connectionMode now: $_connectionMode');
+    print('   - _connectionSource now: $_connectionSource');
+    notifyListeners();
+  }
+
+  /// Cancel connection
+  void cancelConnection() {
+    _connectionMode = false;
+    _connectionSource = null;
+    notifyListeners();
+  }
+
+  /// Delete edge
+  void deleteEdge(String edgeId) {
+    final updatedEdges = _template.edges.where((e) => e.id != edgeId).toList();
+    _template = _template.copyWith(edges: updatedEdges);
+    notifyListeners();
+  }
+
+  /// Select node
+  void selectNode(String? nodeId) {
+    _selectedNodeId = nodeId;
+    notifyListeners();
+  }
+
+  /// Save template
+  Future<bool> saveTemplate() async {
+    // Validate
+    if (_template.name.isEmpty) {
+      _error = 'Template name is required';
+      notifyListeners();
+      return false;
+    }
+
+    if (_template.description.isEmpty) {
+      _error = 'Description is required';
+      notifyListeners();
+      return false;
+    }
+
+    if (_selectedStage == null) {
+      _error = 'Workflow stage must be selected';
+      notifyListeners();
+      return false;
+    }
+
+    _saving = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _apiService.saveWorkflowTemplate(_template);
+      
+      // Update template with saved ID
+      if (_template.id == null && result['id'] != null) {
+        _template = _template.copyWith(id: result['id']);
+      }
+
+      _saving = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to save template: $e';
+      _saving = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Clear error
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Get color for outcome
+  Color _getColorForOutcome(String outcomeType) {
+    const colors = {
+      'approved': Color(0xFF10B981),
+      'hold': Color(0xFFF59E0B),
+      'rejected': Color(0xFFEF4444),
+      'default': Color(0xFF6B7280),
+    };
+    return colors[outcomeType] ?? colors['default']!;
+  }
+}

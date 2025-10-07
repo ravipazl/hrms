@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../providers/workflow_provider.dart';
 import '../models/workflow_template.dart';
 import '../widgets/workflow_canvas.dart';
@@ -52,24 +54,53 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     _descriptionController.text = provider.template.description;
   }
 
-  // ✅ NEW: Load departments from API
+  // ✅ NEW: Load departments from API - EXACTLY like React
   Future<void> _loadDepartments() async {
     setState(() {
       _loadingDepartments = true;
     });
 
     try {
-      // TODO: Replace with actual API call
-      // For now, using mock data
-      _availableDepartments = [
-        Department(id: 1, name: 'Human Resources'),
-        Department(id: 2, name: 'Finance'),
-        Department(id: 3, name: 'IT'),
-        Department(id: 4, name: 'Operations'),
-        Department(id: 5, name: 'Sales'),
-      ];
+      // React code reference (Line 269-282):
+      // const deptResponse = await axios.get(`${ApiURL}reference-data/?reference_type=9`);
+      // const departmentsList = deptResponse.data.results?.map((dept) => ({
+      //   id: dept.id,
+      //   name: dept.reference_value,
+      //   code: dept.reference_code || dept.reference_value,
+      // })) || [];
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/reference-data/?reference_type=9'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Parse the 'results' array from response
+        final results = data['results'] as List<dynamic>?;
+        
+        if (results != null && results.isNotEmpty) {
+          _availableDepartments = results.map((dept) {
+            return Department(
+              id: dept['id'] as int,
+              name: dept['reference_value'] as String,
+            );
+          }).toList();
+          
+          print('✅ Loaded ${_availableDepartments.length} departments from API');
+          print('   Departments: ${_availableDepartments.map((d) => d.name).join(", ")}');
+        } else {
+          print('⚠️ No departments found in API response');
+          _availableDepartments = [];
+        }
+      } else {
+        print('❌ Failed to load departments: HTTP ${response.statusCode}');
+        _availableDepartments = [];
+      }
     } catch (e) {
-      print('Failed to load departments: $e');
+      print('❌ Error loading departments: $e');
+      print('   Make sure the API is running at http://127.0.0.1:8000');
+      _availableDepartments = [];
     } finally {
       setState(() {
         _loadingDepartments = false;

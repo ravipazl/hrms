@@ -24,6 +24,10 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final ScrollController _canvasScrollController = ScrollController();
 
+  // ✅ NEW: Available departments list
+  List<Department> _availableDepartments = [];
+  bool _loadingDepartments = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,12 +41,40 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     
     await provider.initialize();
     
+    // ✅ NEW: Load departments
+    await _loadDepartments();
+    
     if (widget.templateId != null && widget.mode == 'edit') {
       await provider.loadTemplate(widget.templateId!);
     }
     
     _nameController.text = provider.template.name;
     _descriptionController.text = provider.template.description;
+  }
+
+  // ✅ NEW: Load departments from API
+  Future<void> _loadDepartments() async {
+    setState(() {
+      _loadingDepartments = true;
+    });
+
+    try {
+      // TODO: Replace with actual API call
+      // For now, using mock data
+      _availableDepartments = [
+        Department(id: 1, name: 'Human Resources'),
+        Department(id: 2, name: 'Finance'),
+        Department(id: 3, name: 'IT'),
+        Department(id: 4, name: 'Operations'),
+        Department(id: 5, name: 'Sales'),
+      ];
+    } catch (e) {
+      print('Failed to load departments: $e');
+    } finally {
+      setState(() {
+        _loadingDepartments = false;
+      });
+    }
   }
 
   @override
@@ -63,7 +95,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
               // Error banner
               if (provider.error != null) _buildErrorBanner(provider),
               
-              // Connection mode banner
+              // ✅ FIX: Connection mode banner - persists until Cancel clicked
               if (provider.connectionMode) _buildConnectionBanner(provider),
               
               // Main content
@@ -175,13 +207,17 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Connection Mode: Click on a target node to create connection',
+              'Connection Mode: Click on a target node to create connection. Click Cancel or press ESC to exit.',
               style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
             ),
           ),
           TextButton(
             onPressed: () => provider.cancelConnection(),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue,
+            ),
+            child: const Text('Cancel Connection'),
           ),
         ],
       ),
@@ -237,20 +273,27 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             // Stage dropdown
             DropdownButtonFormField<WorkflowStage>(
               value: provider.selectedStage,
+              isExpanded: true, // ✅ FIX: Prevent overflow
               decoration: const InputDecoration(
                 labelText: 'Workflow Stage *',
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               items: provider.availableStages.map((stage) {
                 return DropdownMenuItem(
                   value: stage,
-                  child: Text(stage.description),
+                  child: Text(
+                    stage.description,
+                    overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                    maxLines: 1,
+                  ),
                 );
               }).toList(),
               onChanged: widget.mode == 'view'
                   ? null
                   : (stage) async {
                       if (stage != null) {
+                        // ✅ FIX: Show stage change warning if nodes exist
                         if (provider.template.nodes.isNotEmpty) {
                           final confirm = await _showStageChangeWarning();
                           if (confirm == true) {
@@ -262,6 +305,52 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                       }
                     },
             ),
+            const SizedBox(height: 16),
+            
+            // ✅ NEW: Department dropdown
+            if (_loadingDepartments)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else
+              DropdownButtonFormField<int>(
+                value: provider.template.department,
+                isExpanded: true, // ✅ FIX: Prevent overflow
+                decoration: const InputDecoration(
+                  labelText: 'Department',
+                  border: OutlineInputBorder(),
+                  hintText: 'Optional',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                items: [
+                  const DropdownMenuItem<int>(
+                    value: null,
+                    child: Text(
+                      '-- Global --',
+                      overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                      maxLines: 1,
+                    ),
+                  ),
+                  ..._availableDepartments.map((dept) {
+                    return DropdownMenuItem<int>(
+                      value: dept.id,
+                      child: Text(
+                        dept.name,
+                        overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                ],
+                onChanged: widget.mode == 'view'
+                    ? null
+                    : (value) {
+                        provider.updateTemplateInfo(department: value);
+                      },
+              ),
             const SizedBox(height: 24),
             
             // Node Palette
@@ -282,7 +371,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Drag nodes to the canvas or click to add',
+          'Click to add nodes to the workflow',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 16),
@@ -303,6 +392,11 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                 .where((n) => n.data.dbNodeId == constraint.node.id)
                 .length;
             final canAdd = existingCount < constraint.maxCount;
+            
+            // ✅ FIX: Filter out required nodes (min=1, max=1) from palette
+            if (constraint.minCount == 1 && constraint.maxCount == 1) {
+              return const SizedBox.shrink();
+            }
             
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -379,8 +473,12 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             },
             onNodeTap: (nodeId) {
               if (widget.mode != 'view') {
-                provider.selectNode(nodeId);
-                _showNodeEditDialog(provider, nodeId);
+                final node = provider.template.nodes.firstWhere((n) => n.id == nodeId);
+                // Only show edit dialog for approval nodes, not outcome nodes
+                if (node.type == 'approval') {
+                  provider.selectNode(nodeId);
+                  _showNodeEditDialog(provider, nodeId);
+                }
               }
             },
             connectionMode: provider.connectionMode,
@@ -419,6 +517,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     }
   }
 
+  // ✅ FIX: Stage change warning dialog
   Future<bool?> _showStageChangeWarning() {
     return showDialog<bool>(
       context: context,
@@ -480,4 +579,12 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     _canvasScrollController.dispose();
     super.dispose();
   }
+}
+
+// ✅ NEW: Department model
+class Department {
+  final int id;
+  final String name;
+
+  Department({required this.id, required this.name});
 }

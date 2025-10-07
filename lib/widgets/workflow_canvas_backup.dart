@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import '../models/workflow_node.dart' as wf;
 import '../models/workflow_edge.dart';
 
-/// ✅ FIXED: Proper drag offset handling to prevent node jumping
 class WorkflowCanvas extends StatefulWidget {
   final List<wf.WorkflowNode> nodes;
   final List<WorkflowEdge> edges;
@@ -41,13 +40,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
   static const double nodeWidth = 200.0;
   static const double nodeHeight = 80.0;
 
-  // ✅ FIX: Track node's INITIAL position when drag starts
+  // Drag/click detection
   bool _dragMode = false;
   String? _draggedNodeId;
-  Offset? _nodeStartPosition; // Node's position when drag started
-  Offset _dragOffset = Offset.zero; // Where in the node user clicked
+  Offset _dragOffset = Offset.zero;
   Offset _mousePosition = Offset.zero;
-  Offset? _dragStartMousePos; // Mouse position when drag started
+  Offset? _dragStartPosition;
   static const double _dragThreshold = 5.0;
   bool _justFinishedDrag = false;
 
@@ -157,25 +155,19 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
       top: node.position.dy,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        // ✅ FIX: Store BOTH node position AND click offset
+        // ✅ FIX: Correct drag offset calculation
         onPanStart: widget.connectionMode || widget.readonly ? null : (details) {
           setState(() {
-            // Where in the node user clicked (0,0 to nodeWidth,nodeHeight)
+            // Store where user clicked WITHIN the node (local position)
             _dragOffset = details.localPosition;
-            // Node's current position when drag started
-            _nodeStartPosition = node.position;
-            // Mouse global position when drag started
-            _dragStartMousePos = details.globalPosition;
             _draggedNodeId = node.id;
+            _dragStartPosition = details.globalPosition;
           });
-          print('🎯 Drag START:');
-          print('   - Node position: ${node.position}');
-          print('   - Click offset in node: ${details.localPosition}');
-          print('   - Mouse global: ${details.globalPosition}');
+          print('🎯 Drag start: localPosition=${details.localPosition}, nodePos=${node.position}');
         },
         onPanUpdate: widget.connectionMode || widget.readonly ? null : (details) {
-          if (_draggedNodeId == node.id && _dragStartMousePos != null && _nodeStartPosition != null) {
-            final distance = (details.globalPosition - _dragStartMousePos!).distance;
+          if (_draggedNodeId == node.id && _dragStartPosition != null) {
+            final distance = (details.globalPosition - _dragStartPosition!).distance;
             
             // Only activate drag mode if moved beyond threshold
             if (distance > _dragThreshold) {
@@ -183,17 +175,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                 setState(() {
                   _dragMode = true;
                 });
-                print('🔄 Drag MODE ACTIVATED (moved > ${_dragThreshold}px)');
               }
               
-              // ✅ CRITICAL FIX: Use delta for smooth dragging
-              // Calculate total movement from start position
-              final totalDeltaX = details.globalPosition.dx - _dragStartMousePos!.dx;
-              final totalDeltaY = details.globalPosition.dy - _dragStartMousePos!.dy;
-              
-              // Apply to original node position
-              final newX = _nodeStartPosition!.dx + totalDeltaX;
-              final newY = _nodeStartPosition!.dy + totalDeltaY;
+              // ✅ FIX: Calculate new position correctly
+              // details.delta gives us the movement since last update
+              final newX = node.position.dx + details.delta.dx;
+              final newY = node.position.dy + details.delta.dy;
               
               // Clamp to canvas bounds
               final clampedX = newX.clamp(0.0, 2200.0 - nodeWidth);
@@ -201,25 +188,22 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
               
               final snappedPos = _snapToGrid(Offset(clampedX, clampedY));
               
-              print('📍 Drag UPDATE: newPos=$snappedPos (delta: $totalDeltaX, $totalDeltaY)');
               widget.onNodeDrag(node.id, snappedPos);
             }
           }
         },
         onPanEnd: widget.connectionMode || widget.readonly ? null : (details) {
           final wasDragging = _dragMode;
-          print('🏁 Drag END: wasDragging=$wasDragging');
           
           setState(() {
             _dragMode = false;
             _draggedNodeId = null;
             _dragOffset = Offset.zero;
-            _nodeStartPosition = null;
-            _dragStartMousePos = null;
+            _dragStartPosition = null;
             
             if (wasDragging) {
               _justFinishedDrag = true;
-              Future.delayed(const Duration(milliseconds: 150), () {
+              Future.delayed(const Duration(milliseconds: 100), () {
                 if (mounted) {
                   setState(() {
                     _justFinishedDrag = false;
@@ -230,22 +214,18 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
           });
         },
         onTap: () {
-          print('🖱️ Node TAP: ${node.id}');
-          print('   - dragMode: $_dragMode');
-          print('   - justFinished: $_justFinishedDrag');
+          print('🖱️ Node tap: ${node.id}, dragMode: $_dragMode, justFinished: $_justFinishedDrag');
           
           if (!_dragMode && !_justFinishedDrag) {
             if (widget.connectionMode) {
               if (widget.connectionSource != node.id) {
-                print('   ✅ Complete connection');
                 widget.onCompleteConnection?.call(node.id);
               }
             } else {
-              print('   ✅ Open node dialog');
               widget.onNodeTap(node.id);
             }
           } else {
-            print('   ⚠️ Tap IGNORED (drag state)');
+            print('   ⚠️ Tap ignored because of drag state');
           }
         },
         child: MouseRegion(
@@ -321,7 +301,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                     ],
                   ),
                 ),
-                // Connection handles for approval nodes
                 if (!widget.readonly && isApprovalNode)
                   Positioned(
                     right: -14,
@@ -360,7 +339,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                       ),
                     ),
                   ),
-                // Target indicator in connection mode
                 if (!widget.readonly && widget.connectionMode && widget.connectionSource != node.id)
                   Positioned(
                     left: -14,
@@ -397,7 +375,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                       ),
                     ),
                   ),
-                // Position indicator while dragging
                 if (isDragging)
                   Positioned(
                     top: -35,
@@ -496,7 +473,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
   }
 }
 
-// Grid Painter (unchanged)
 class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -548,7 +524,6 @@ class GridPainter extends CustomPainter {
   bool shouldRepaint(GridPainter oldDelegate) => false;
 }
 
-// Edges Painter (unchanged - keeping your existing implementation)
 class EdgesPainter extends CustomPainter {
   final List<wf.WorkflowNode> nodes;
   final List<WorkflowEdge> edges;

@@ -1,12 +1,12 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:hrms/widgets/dialogs/node_edit_dialog.dart';
 import '../models/workflow_template.dart';
 import '../models/workflow_node.dart';
 import '../models/workflow_edge.dart';
 import '../services/workflow_api_service.dart';
 import '../services/employee_api_service.dart';
-import '../widgets/dialogs/node_edit_dialog.dart';
 
 class WorkflowProvider with ChangeNotifier {
   final WorkflowApiService _apiService = WorkflowApiService();
@@ -38,6 +38,9 @@ class WorkflowProvider with ChangeNotifier {
   // Employee data
   List<Employee> _availableEmployees = [];
   bool _loadingEmployees = false;
+
+  // NEW: Required nodes tracking
+  bool _requiredNodesAdded = false;
 
   // Getters
   WorkflowTemplate get template => _template;
@@ -120,6 +123,7 @@ class WorkflowProvider with ChangeNotifier {
         await loadStageConstraints(_selectedStage!.id);
       }
       
+      _requiredNodesAdded = true; // Already has nodes from DB
       _error = null;
     } catch (e) {
       _error = 'Failed to load template: $e';
@@ -134,8 +138,11 @@ class WorkflowProvider with ChangeNotifier {
     try {
       _stageConstraints = await _apiService.loadStageNodes(stageId);
       
-      // Auto-add required nodes
-      _autoAddRequiredNodes();
+      // ✅ FIX: Auto-add required nodes only if not already added
+      if (!_requiredNodesAdded) {
+        _autoAddRequiredNodes();
+        _requiredNodesAdded = true;
+      }
       
       notifyListeners();
     } catch (e) {
@@ -143,7 +150,7 @@ class WorkflowProvider with ChangeNotifier {
     }
   }
 
-  /// Auto-add required nodes (min_count = 1, max_count = 1)
+  /// ✅ FIX: Auto-add required nodes (min_count = 1, max_count = 1)
   void _autoAddRequiredNodes() {
     final requiredConstraints = _stageConstraints
         .where((c) => c.minCount == 1 && c.maxCount == 1)
@@ -176,11 +183,11 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Change workflow stage
+  /// ✅ FIX: Change workflow stage with proper cleanup
   Future<void> changeStage(WorkflowStage stage) async {
     if (stage.id == _selectedStage?.id) return;
 
-    // If nodes exist, clear them (stage change warning should be handled in UI)
+    // Clear workflow data and reset required nodes flag
     _template = _template.copyWith(
       stage: stage.name,
       selectedStage: stage,
@@ -189,6 +196,8 @@ class WorkflowProvider with ChangeNotifier {
     );
     
     _selectedStage = stage;
+    _requiredNodesAdded = false; // Reset flag for new stage
+    
     await loadStageConstraints(stage.id);
     notifyListeners();
   }
@@ -235,15 +244,23 @@ class WorkflowProvider with ChangeNotifier {
     // Determine UI node type
     final uiNodeType = dbNode.type == 'Stop' ? 'outcome' : 'approval';
     
-    // Determine outcome type for Stop nodes
+    // ✅ FIX: Better outcome type determination
     String? outcomeType;
     if (dbNode.type == 'Stop') {
+      // Map based on node ID from database
       const outcomeMapping = {
         2: 'approved',
         3: 'hold',
         4: 'rejected',
       };
-      outcomeType = outcomeMapping[dbNode.id] ?? 'default';
+      outcomeType = outcomeMapping[dbNode.id];
+      
+      // ✅ DEBUG: Log the outcome assignment
+      print('🎯 Creating outcome node:');
+      print('   - dbNode.id: ${dbNode.id}');
+      print('   - dbNode.name: ${dbNode.name}');
+      print('   - dbNode.displayName: ${dbNode.displayName}');
+      print('   - Assigned outcome: $outcomeType');
     }
 
     // Get color
@@ -271,6 +288,8 @@ class WorkflowProvider with ChangeNotifier {
       ),
     );
 
+    print('✅ Node created with outcome: ${newNode.data.outcome}');
+
     final updatedNodes = List<WorkflowNode>.from(_template.nodes)..add(newNode);
     _template = _template.copyWith(nodes: updatedNodes);
     _error = null;
@@ -279,8 +298,19 @@ class WorkflowProvider with ChangeNotifier {
 
   /// Update node position
   void updateNodePosition(String nodeId, Offset newPosition) {
+    print('📍 updateNodePosition: $nodeId to $newPosition');
+    
+    // ✅ FIX: Find the node BEFORE updating
+    final nodeExists = _template.nodes.any((n) => n.id == nodeId);
+    if (!nodeExists) {
+      print('   ⚠️ Node $nodeId not found in template!');
+      print('   - Current nodes: ${_template.nodes.map((n) => n.id).toList()}');
+      return;
+    }
+    
     final updatedNodes = _template.nodes.map((node) {
       if (node.id == nodeId) {
+        print('   ✅ Updating position for ${node.data.label}');
         return node.copyWith(position: newPosition);
       }
       return node;
@@ -324,7 +354,7 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Complete connection - Exit connection mode after each connection
+  /// ✅ FIX: Complete connection with correct label
   void completeConnection(String targetNodeId) {
     print('🔗 completeConnection called');
     print('   - targetNodeId: $targetNodeId');
@@ -346,38 +376,61 @@ class WorkflowProvider with ChangeNotifier {
 
     if (exists) {
       print('   ⚠️ Connection already exists');
-    } else {
-      // Determine connection label
-      final targetNode = _template.nodes.firstWhere((n) => n.id == targetNodeId);
-      String label = 'Proceed';
-      
-      if (targetNode.type == 'outcome') {
-        label = targetNode.data.outcome?.toUpperCase() ?? 'PROCEED';
-      }
-
-      final newEdge = WorkflowEdge(
-        id: 'edge-${DateTime.now().millisecondsSinceEpoch}',
-        source: _connectionSource!,
-        target: targetNodeId,
-        label: label,
-        type: 'straight',
-        data: {'condition': label.toLowerCase()},
-      );
-
-      final updatedEdges = List<WorkflowEdge>.from(_template.edges)..add(newEdge);
-      _template = _template.copyWith(edges: updatedEdges);
-      
-      print('   ✅ Connection created: $_connectionSource -> $targetNodeId');
-      print('   ✅ Total edges now: ${updatedEdges.length}');
+      notifyListeners(); // Still notify to update UI
+      return;
     }
 
-    // ✅ FIX: Exit connection mode after each connection
-    // User must click blue circle again to create another connection
-    print('   🔄 EXITING connection mode');
-    _connectionMode = false;
-    _connectionSource = null;
-    print('   - _connectionMode now: $_connectionMode');
-    print('   - _connectionSource now: $_connectionSource');
+    // Get target node to determine label
+    final targetNode = _template.nodes.firstWhere(
+      (n) => n.id == targetNodeId,
+      orElse: () => WorkflowNode(
+        id: '',
+        type: 'approval',
+        position: Offset.zero,
+        data: WorkflowNodeData(label: '', title: '', color: const Color(0xFF3B82F6)),
+      ),
+    );
+    
+    if (targetNode.id.isEmpty) {
+      print('   ⚠️ Target node not found!');
+      return;
+    }
+    
+    // ✅ FIX: Correct label determination
+    String label = 'Proceed';
+    String condition = 'approved';
+    
+    if (targetNode.type == 'outcome' && targetNode.data.outcome != null) {
+      // Use the ACTUAL outcome stored in the node
+      final outcome = targetNode.data.outcome!;
+      label = outcome.toUpperCase(); // APPROVED, HOLD, REJECTED
+      condition = outcome.toLowerCase(); // approved, hold, rejected
+      
+      print('   🎯 Creating edge to outcome node:');
+      print('      - Target outcome: $outcome');
+      print('      - Edge label: $label');
+      print('      - Edge condition: $condition');
+    }
+
+    final newEdge = WorkflowEdge(
+      id: 'edge-${DateTime.now().millisecondsSinceEpoch}',
+      source: _connectionSource!,
+      target: targetNodeId,
+      label: label,
+      type: 'straight',
+      data: {'condition': condition},
+    );
+
+    final updatedEdges = List<WorkflowEdge>.from(_template.edges)..add(newEdge);
+    _template = _template.copyWith(edges: updatedEdges);
+    
+    print('   ✅ Connection created: $_connectionSource -> $targetNodeId');
+    print('   ✅ Edge label: $label, condition: $condition');
+    print('   ✅ Total edges now: ${updatedEdges.length}');
+
+    // Connection mode stays ACTIVE
+    print('   🔄 KEEPING connection mode ACTIVE');
+    
     notifyListeners();
   }
 

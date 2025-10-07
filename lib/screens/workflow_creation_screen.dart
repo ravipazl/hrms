@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:html' as html; // ✅ For web navigation (same tab)
 import '../providers/workflow_provider.dart';
 import '../models/workflow_template.dart';
 import '../widgets/workflow_canvas.dart';
@@ -192,7 +193,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             const SizedBox(width: 12),
           ],
           OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => _handleCancel(),
             child: Text(widget.mode == 'view' ? 'Close' : 'Cancel'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -533,18 +534,33 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     );
   }
 
+  // ✅ Handle cancel button - Navigate to Django templates page (same tab)
+  void _handleCancel() {
+    // React code: window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+    // Flutter web: Use dart:html for same-tab navigation
+    html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+  }
+
+  // ✅ Handle save template - Show success then navigate to templates page
   Future<void> _saveTemplate(WorkflowProvider provider) async {
     final success = await provider.saveTemplate();
     
     if (success) {
       if (!mounted) return;
+      
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Template saved successfully!'),
+          content: Text('✅ Workflow template saved successfully!'),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
         ),
       );
-      Navigator.of(context).pop();
+      
+      // React code: After save, calls handleClose() → window.location.href
+      // Flutter web: Navigate to Django templates page (same tab)
+      await Future.delayed(const Duration(milliseconds: 1000)); // Let user see success message
+      html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
     }
   }
 

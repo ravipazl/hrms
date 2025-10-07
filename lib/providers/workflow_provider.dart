@@ -296,27 +296,39 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update node position
+  /// Update node position - FIXED: Better error handling and debugging
   void updateNodePosition(String nodeId, Offset newPosition) {
-    print('📍 updateNodePosition: $nodeId to $newPosition');
+    print('📍 updateNodePosition called');
+    print('   - nodeId: $nodeId');
+    print('   - newPosition: $newPosition');
+    print('   - Total nodes in template: ${_template.nodes.length}');
     
-    // ✅ FIX: Find the node BEFORE updating
-    final nodeExists = _template.nodes.any((n) => n.id == nodeId);
-    if (!nodeExists) {
-      print('   ⚠️ Node $nodeId not found in template!');
-      print('   - Current nodes: ${_template.nodes.map((n) => n.id).toList()}');
+    // ✅ CRITICAL FIX: Check if node exists BEFORE updating
+    final nodeIndex = _template.nodes.indexWhere((n) => n.id == nodeId);
+    
+    if (nodeIndex == -1) {
+      print('   ❌ ERROR: Node $nodeId NOT FOUND in template!');
+      print('   - Available node IDs:');
+      for (var node in _template.nodes) {
+        print('     * ${node.id} (${node.data.label})');
+      }
+      // ⚠️ DON'T call notifyListeners() if node not found!
       return;
     }
     
-    final updatedNodes = _template.nodes.map((node) {
-      if (node.id == nodeId) {
-        print('   ✅ Updating position for ${node.data.label}');
-        return node.copyWith(position: newPosition);
-      }
-      return node;
-    }).toList();
-
+    final node = _template.nodes[nodeIndex];
+    print('   ✅ Found node: ${node.data.label}');
+    print('   - Old position: ${node.position}');
+    print('   - New position: $newPosition');
+    
+    // Create updated nodes list with modified position
+    final updatedNodes = List<WorkflowNode>.from(_template.nodes);
+    updatedNodes[nodeIndex] = node.copyWith(position: newPosition);
+    
+    // Update template
     _template = _template.copyWith(nodes: updatedNodes);
+    
+    print('   ✅ Position updated successfully');
     notifyListeners();
   }
 

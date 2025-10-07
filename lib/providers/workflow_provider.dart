@@ -354,7 +354,7 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// ✅ FIX: Complete connection with correct label
+  /// ✅ FIX: Complete connection with correct label and clear source
   void completeConnection(String targetNodeId) {
     print('🔗 completeConnection called');
     print('   - targetNodeId: $targetNodeId');
@@ -428,8 +428,13 @@ class WorkflowProvider with ChangeNotifier {
     print('   ✅ Edge label: $label, condition: $condition');
     print('   ✅ Total edges now: ${updatedEdges.length}');
 
-    // Connection mode stays ACTIVE
-    print('   🔄 KEEPING connection mode ACTIVE');
+    // ✅ CRITICAL FIX: Clear connection source but keep mode active
+    // This removes the dashed preview line while keeping connection mode on
+    // User must click connection handle again to start new connection
+    _connectionSource = null;
+    print('   🔄 Connection mode stays ACTIVE, but source cleared');
+    print('   🔄 Dashed preview line will disappear');
+    print('   🔄 User must click connection handle again for next connection');
     
     notifyListeners();
   }

@@ -1,229 +1,377 @@
-# HRMS Workflow Management System - Web Application
+# HRMS Workflow Management - Flutter Implementation
 
-This Flutter web application provides comprehensive workflow management and requisition management for healthcare organizations.
+## 📋 Overview
 
-## 🚀 Quick Start
+This is a Flutter web implementation of the SRMC Requisition Workflow system, specifically focusing on workflow creation, editing, and execution features.
 
-### 1. Prerequisites
-- Flutter 3.7.2 or higher
-- Django backend running on http://127.0.0.1:8000
+## 🏗️ Architecture
 
-### 2. Run the Application
+### Models (`lib/models/`)
+- **workflow_node.dart** - Node model representing approval or outcome steps
+- **workflow_edge.dart** - Edge model representing connections between nodes
+- **workflow_template.dart** - Complete workflow template with stages and constraints
+
+### Services (`lib/services/`)
+- **workflow_api_service.dart** - REST API client for Django backend
+  - Load stages, nodes, and constraints
+  - Save and load workflow templates
+  - Transform between database and UI formats
+
+### Providers (`lib/providers/`)
+- **workflow_provider.dart** - State management using Provider pattern
+  - Manages workflow template state
+  - Handles node/edge CRUD operations
+  - Connection mode management
+  - API integration
+
+### Widgets (`lib/widgets/`)
+- **workflow_canvas.dart** - Visual workflow canvas
+  - Drag-and-drop node positioning
+  - Edge rendering with arrows and labels
+  - Grid background
+  - Connection visualization
+
+### Screens (`lib/screens/`)
+- **workflow_creation_screen.dart** - Main workflow builder screen
+  - Template information form
+  - Node palette
+  - Canvas interaction
+  - Save/Edit/View modes
+
+## 🚀 Features Implemented
+
+### ✅ Core Features
+1. **Workflow Creation**
+   - Visual drag-and-drop interface
+   - Dynamic node addition from palette
+   - Stage-based node constraints
+   - Auto-add required nodes
+
+2. **Workflow Editing**
+   - Load existing templates
+   - Modify nodes and connections
+   - Update template information
+   - Save changes to backend
+
+3. **Node Management**
+   - Approval nodes (Process type)
+   - Outcome nodes (Stop type)
+   - Node validation against constraints
+   - Employee assignment capability
+
+4. **Connection Management**
+   - Visual connection mode
+   - Click-to-connect interface
+   - Edge labels and conditions
+   - Flow start/end detection
+
+5. **Stage Management**
+   - Load stages from database
+   - Stage-specific node constraints
+   - Stage change warnings
+   - Auto-clear on stage change
+
+6. **API Integration**
+   - Full REST API integration with Django backend
+   - Save workflow templates
+   - Load templates for editing
+   - Stage and node data loading
+
+## 📦 Dependencies
+
+```yaml
+dependencies:
+  flutter: sdk
+  http: ^1.2.0           # HTTP client
+  dio: ^5.4.0            # Advanced HTTP client
+  provider: ^6.1.1       # State management
+  flutter_svg: ^2.0.9    # SVG support
+  uuid: ^4.3.3           # UUID generation
+  intl: ^0.19.0          # Internationalization
+```
+
+## 🔧 Setup Instructions
+
+### 1. Install Dependencies
 ```bash
-# Easy setup (Windows)
-run_requisition_app.bat
-
-# Manual setup
+cd D:\hrms
 flutter pub get
-flutter run -d chrome
 ```
 
-### 3. Access the System
-- Home: http://localhost:port/
-- Requisitions: http://localhost:port/requisition
-- Workflow Builder: http://localhost:port/workflow-creation
-
-## 🎯 Features
-
-### ✅ Requisition Management (NEW)
-- **Complete CRUD Operations**: Create, read, update, delete requisitions
-- **Multi-Position Support**: Handle multiple positions in one requisition
-- **File Upload**: Job description documents (PDF, DOC, images)
-- **Advanced Form**: Dynamic cards, validation, skills management
-- **API Integration**: Full Django backend integration
-- **Search & Filter**: Advanced filtering and pagination
-- **Status Tracking**: Real-time status updates
-
-### ✅ Workflow Management (Existing)
-- **Visual Workflow Designer**: Drag-and-drop workflow creation
-- **Template Management**: Reusable workflow templates
-- **Node-Based Design**: Approval and outcome nodes
-- **Stage Management**: Different workflow stages
-- **Employee Assignment**: Assign approvers to workflow steps
-
-## 📁 Project Structure
-
-```
-lib/
-├── main.dart                              # App entry & routing
-├── models/
-│   ├── requisition/requisition.dart      # 🆕 Requisition models
-│   ├── workflow_node.dart                # Workflow models
-│   ├── workflow_edge.dart
-│   └── workflow_template.dart
-├── providers/
-│   ├── requisition_provider.dart         # 🆕 Requisition state
-│   └── workflow_provider.dart            # Workflow state
-├── screens/
-│   ├── requisition_management_screen.dart # 🆕 Main dashboard
-│   ├── requisition_list_screen.dart      # 🆕 Data table
-│   ├── requisition_form_screen.dart      # 🆕 Form with upload
-│   └── workflow_creation_screen.dart     # Workflow builder
-├── services/
-│   ├── requisition_api_service.dart      # 🆕 Requisition API
-│   ├── workflow_api_service.dart         # Workflow API
-│   └── employee_api_service.dart         # Employee API
-└── widgets/
-    ├── common/                            # 🆕 Reusable components
-    ├── dialogs/
-    └── workflow_canvas.dart
+### 2. Configure API Endpoint
+Update the `baseUrl` in `lib/services/workflow_api_service.dart`:
+```dart
+static const String baseUrl = 'http://127.0.0.1:8000/api';
 ```
 
-## 🔄 Workflow Management
-
-### Creating Workflows
-1. Navigate to `/workflow-creation`
-2. Select workflow stage
-3. Add approval and outcome nodes
-4. Connect nodes with edges
-5. Assign employees to approval nodes
-6. Save template
-
-### Workflow Features
-- **Node Types**: Approval nodes and outcome nodes
-- **Visual Editor**: Drag-and-drop interface
-- **Employee Management**: Assign specific employees to nodes
-- **Template System**: Save and reuse workflow templates
-- **Stage Constraints**: Different node types per stage
-
-## 📋 Requisition Management
-
-### Creating Requisitions
-1. Navigate to `/requisition` or `/reqfrom`
-2. Fill in job position and department
-3. Choose job description method (text or upload)
-4. Add requisition cards for positions
-5. Specify employee details for replacements
-6. Add skills and qualifications
-7. Submit to Django backend
-
-### Requisition Features
-- **Multi-Position Cards**: Handle multiple positions
-- **File Upload**: Job description documents
-- **Employee Information**: Replacement employee details
-- **Skills Management**: Essential and desired skills
-- **Status Tracking**: Pending, approved, rejected, etc.
-- **Search & Filter**: Find requisitions quickly
-
-## 🌐 API Integration
-
-### Backend Endpoints
-```
-Base URL: http://127.0.0.1:8000/api
-
-Workflow Endpoints:
-- GET/POST /workflow/templates/
-- GET/POST/PUT /workflow/stages/
-- GET/POST /workflow/nodes/
-
-Requisition Endpoints:
-- GET/POST /requisition/
-- GET/PUT/DELETE /requisition/{id}/
-- PATCH /requisition/{id}/status/
-- GET /reference-data/
-```
-
-### Data Flow
-```
-Flutter UI → Provider State → API Service → Django Backend
-     ↑                                           ↓
-User Actions ← UI Updates ← State Changes ← API Response
-```
-
-## 🎨 UI/UX Features
-
-- **Material Design 3**: Modern, consistent UI
-- **Responsive Design**: Works on all screen sizes
-- **Dark/Light Theme**: Automatic theme switching
-- **Loading States**: Progress indicators for async operations
-- **Error Handling**: Graceful error messages and recovery
-- **Form Validation**: Real-time validation feedback
-
-## 🔧 Configuration
-
-### Environment Setup
-1. Ensure Django backend is running on port 8000
-2. Update API URLs in service files if needed
-3. Configure CORS settings in Django for cross-origin requests
-
-### Development Mode
-- Use `flutter run -d chrome` for hot reload
-- Check browser console for detailed API logs
-- Use Flutter DevTools for debugging
-
-### Production Build
+### 3. Run the Application
 ```bash
-flutter build web --release
-# Deploy contents of build/web/ to your web server
+# For web
+flutter run -d chrome
+
+# For Windows
+flutter run -d windows
+
+# For development with hot reload
+flutter run
 ```
+
+## 📱 Usage
+
+### Creating a New Workflow
+1. Click "Create New Workflow" button
+2. Fill in template name and description
+3. Select workflow stage
+4. Add nodes from the palette
+5. Create connections between nodes
+6. Click "Save Template"
+
+### Editing Existing Workflow
+1. Navigate with templateId parameter
+2. Make desired changes
+3. Click "Save Template"
+
+### Viewing Workflow
+1. Open in view mode
+2. Canvas is read-only
+3. Can view all nodes and connections
+
+## 🎨 UI Components
+
+### Workflow Canvas
+- **Grid Background**: 40px grid for alignment
+- **Node Dimensions**: 200px × 80px
+- **Node Types**:
+  - Approval: Blue (Process nodes)
+  - Outcome: Green/Yellow/Red (Stop nodes)
+- **Edges**: Straight lines with arrow heads and labels
+
+### Node Palette
+- Shows available nodes for selected stage
+- Displays current count / max count
+- Disabled when max count reached
+- Color-coded by availability
+
+### Node Properties
+- Label/Title
+- Assigned employee
+- Department
+- Step order
+- Comments
+- Outcome type (for Stop nodes)
+
+## 🔄 Workflow Execution Flow
+
+### 1. Template Creation
+```
+User Input → WorkflowProvider → API Service → Django Backend
+```
+
+### 2. Node Addition
+```
+Click Palette → Validate Constraints → Add to Canvas → Update State
+```
+
+### 3. Connection Creation
+```
+Click Source Node → Enter Connection Mode → Click Target Node → Create Edge
+```
+
+### 4. Template Save
+```
+Validate Template → Transform to API Format → POST to Backend → Save Layout
+```
+
+## 🗄️ Data Flow
+
+### Template Structure
+```dart
+WorkflowTemplate {
+  id, name, description,
+  stage, selectedStage,
+  department, isGlobalDefault,
+  nodes: [WorkflowNode],
+  edges: [WorkflowEdge],
+  metadata
+}
+```
+
+### Node Structure
+```dart
+WorkflowNode {
+  id, type, position,
+  data: {
+    label, title, color,
+    dbNodeId, nodeType,
+    employee info,
+    outcome
+  }
+}
+```
+
+### Edge Structure
+```dart
+WorkflowEdge {
+  id, source, target,
+  label, type,
+  data: { condition },
+  isStart, isEnd
+}
+```
+
+## 🔐 API Endpoints Used
+
+### Stages
+- `GET /api/workflow/stages/` - Load all stages
+
+### Nodes
+- `GET /api/workflow/nodes/` - Load available node types
+- `GET /api/workflow/stage-nodes/?stage={id}` - Load stage constraints
+
+### Templates
+- `GET /api/workflow/templates/` - List templates
+- `GET /api/workflow/templates/{id}/` - Get single template
+- `POST /api/workflow/templates/` - Create template
+- `PUT /api/workflow/templates/{id}/` - Update template
+- `POST /api/workflow/templates/{id}/save_layout/` - Save nodes/edges
+
+## 🎯 Key Differences from React Implementation
+
+### 1. State Management
+- **React**: useState, useEffect hooks
+- **Flutter**: Provider pattern with ChangeNotifier
+
+### 2. UI Framework
+- **React**: HTML/CSS with Tailwind
+- **Flutter**: Widget-based with Material Design
+
+### 3. Rendering
+- **React**: Virtual DOM
+- **Flutter**: Widget tree with direct rendering
+
+### 4. Drag & Drop
+- **React**: @dnd-kit library
+- **Flutter**: GestureDetector with manual position tracking
+
+### 5. Canvas Drawing
+- **React**: SVG or Canvas API
+- **Flutter**: CustomPaint with Canvas API
+
+## 🐛 Known Limitations
+
+1. **Grid Pattern**: Currently using a simple background, needs grid asset
+2. **Connection Line**: Dynamic connection line while dragging not yet implemented
+3. **Multi-selection**: Not yet implemented (Ctrl+Click)
+4. **Undo/Redo**: Not implemented
+5. **Zoom/Pan**: Canvas zoom and pan not yet added
+6. **Employee Picker**: Employee selection UI needs enhancement
+
+## 🔮 Future Enhancements
+
+### Planned Features
+1. **Advanced Canvas Controls**
+   - Zoom in/out
+   - Pan/scroll
+   - Mini-map
+   - Fit to screen
+
+2. **Enhanced Node Editing**
+   - Rich text editor for comments
+   - Employee search and selection
+   - Department picker
+   - Validation rules
+
+3. **Connection Improvements**
+   - Curved edges
+   - Multiple connection paths
+   - Connection labels editor
+   - Conditional routing
+
+4. **Workflow Execution**
+   - Real-time status updates
+   - Execution history
+   - Approval actions
+   - Notifications
+
+5. **Template Management**
+   - Template library
+   - Template categories
+   - Search and filter
+   - Template duplication
+
+6. **Collaboration**
+   - Multi-user editing
+   - Comments and annotations
+   - Version control
+   - Change history
+
+## 📝 Code Structure Best Practices
+
+### Models
+- Immutable data classes
+- JSON serialization
+- copyWith methods for updates
+
+### Services
+- Async/await for API calls
+- Error handling
+- Response transformation
+
+### Providers
+- ChangeNotifier for state updates
+- Computed getters
+- Action methods
+
+### Widgets
+- Stateless where possible
+- Composition over inheritance
+- Const constructors for performance
 
 ## 🧪 Testing
 
-### Manual Test Checklist
-- [ ] Workflow creation and editing
-- [ ] Node addition and connection
-- [ ] Employee assignment to nodes
-- [ ] Requisition CRUD operations
-- [ ] File upload functionality
-- [ ] Multi-position card management
-- [ ] Search and filtering
-- [ ] API error handling
-- [ ] Responsive design testing
+### Unit Tests
+```bash
+flutter test
+```
 
-## 🚨 Troubleshooting
+### Widget Tests
+```bash
+flutter test test/widgets/
+```
 
-### Common Issues
-1. **API Connection**: Ensure Django is running on port 8000
-2. **CORS Errors**: Check Django CORS settings
-3. **File Upload**: Verify file size limits and formats
-4. **Provider State**: Ensure providers are properly initialized
+### Integration Tests
+```bash
+flutter test integration_test/
+```
 
-### Debug Information
-- Check browser console for detailed error logs
-- Use network tab to inspect API calls
-- Verify Django backend logs for server-side issues
+## 📚 Resources
 
-## 📱 Platform Support
+### Flutter Documentation
+- [Flutter Web](https://flutter.dev/web)
+- [Provider Package](https://pub.dev/packages/provider)
+- [Custom Paint](https://api.flutter.dev/flutter/widgets/CustomPaint-class.html)
 
-- ✅ **Web** (Primary): Chrome, Firefox, Safari, Edge
-- ⏳ **Desktop**: Windows, macOS, Linux (future)
-- ⏳ **Mobile**: iOS, Android (future)
-
-## 🔮 Roadmap
-
-### Near-term Enhancements
-- [ ] Authentication & authorization
-- [ ] Real-time notifications
-- [ ] Advanced reporting
-- [ ] Email integration
-
-### Long-term Goals
-- [ ] Mobile app versions
-- [ ] Offline support
-- [ ] Advanced workflow analytics
-- [ ] Integration with external systems
-
-## 📄 Documentation
-
-- **Requisition Guide**: See `REQUISITION_README.md`
-- **Workflow Guide**: See existing workflow documentation
-- **API Documentation**: Check Django backend docs
+### API Documentation
+- Django REST Framework endpoints
+- Workflow database schema
+- Authentication methods
 
 ## 🤝 Contributing
 
-1. Follow Flutter/Dart style guidelines
-2. Test all new features thoroughly
-3. Update documentation for new features
-4. Ensure backward compatibility
+1. Follow Flutter style guide
+2. Write tests for new features
+3. Update documentation
+4. Use meaningful commit messages
 
-## 🆘 Support
+## 📄 License
 
-For technical support:
-1. Check troubleshooting section
-2. Review browser console errors
-3. Verify Django backend status
-4. Contact development team
+Part of SRMC HRMS System
+
+## 👥 Team
+
+Developed by HRMS Development Team
 
 ---
 
-**Built with Flutter & Django for SRMC Healthcare Management** 🏥
+**Status**: ✅ Core workflow creation and editing implemented
+**Next Steps**: Workflow execution and approval features

@@ -4,6 +4,7 @@ import '../models/workflow_node.dart' as wf;
 import '../models/workflow_edge.dart';
 
 class WorkflowCanvas extends StatefulWidget {
+  
   final List<wf.WorkflowNode> nodes;
   final List<WorkflowEdge> edges;
   final Function(String nodeId, Offset position) onNodeDrag;

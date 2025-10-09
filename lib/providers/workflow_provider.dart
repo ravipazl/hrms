@@ -1,16 +1,20 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:hrms/widgets/dialogs/node_edit_dialog.dart';
 import '../models/workflow_template.dart';
 import '../models/workflow_node.dart';
 import '../models/workflow_edge.dart';
 import '../services/workflow_api_service.dart';
 import '../services/employee_api_service.dart';
-import '../widgets/dialogs/node_edit_dialog.dart';
 
 class WorkflowProvider with ChangeNotifier {
   final WorkflowApiService _apiService = WorkflowApiService();
   final EmployeeApiService _employeeApiService = EmployeeApiService();
+  
+  // ✅ FIX: Counters to ensure unique IDs
+  static int _nodeIdCounter = 0;
+  static int _edgeIdCounter = 0;
 
   // Template data
   WorkflowTemplate _template = WorkflowTemplate(
@@ -38,6 +42,9 @@ class WorkflowProvider with ChangeNotifier {
   // Employee data
   List<Employee> _availableEmployees = [];
   bool _loadingEmployees = false;
+
+  // NEW: Required nodes tracking
+  bool _requiredNodesAdded = false;
 
   // Getters
   WorkflowTemplate get template => _template;
@@ -113,15 +120,28 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      print('📥 Loading template with ID: $templateId');
+      
+      // Load template from API
       _template = await _apiService.loadWorkflowTemplate(templateId);
       _selectedStage = _template.selectedStage;
       
+      print('✅ Template loaded: ${_template.name}');
+      print('   - Nodes: ${_template.nodes.length}');
+      print('   - Edges: ${_template.edges.length}');
+      print('   - Stage: ${_selectedStage?.name}');
+      print('   - Department: ${_template.department}');
+      
+      // Load stage constraints for this stage
       if (_selectedStage != null) {
         await loadStageConstraints(_selectedStage!.id);
       }
       
+      // Mark required nodes as already added (loaded from DB)
+      _requiredNodesAdded = true;
       _error = null;
     } catch (e) {
+      print('❌ Failed to load template: $e');
       _error = 'Failed to load template: $e';
     } finally {
       _loading = false;
@@ -134,8 +154,11 @@ class WorkflowProvider with ChangeNotifier {
     try {
       _stageConstraints = await _apiService.loadStageNodes(stageId);
       
-      // Auto-add required nodes
-      _autoAddRequiredNodes();
+      // ✅ FIX: Auto-add required nodes only if not already added
+      if (!_requiredNodesAdded) {
+        _autoAddRequiredNodes();
+        _requiredNodesAdded = true;
+      }
       
       notifyListeners();
     } catch (e) {
@@ -143,7 +166,7 @@ class WorkflowProvider with ChangeNotifier {
     }
   }
 
-  /// Auto-add required nodes (min_count = 1, max_count = 1)
+  /// ✅ FIX: Auto-add required nodes (min_count = 1, max_count = 1)
   void _autoAddRequiredNodes() {
     final requiredConstraints = _stageConstraints
         .where((c) => c.minCount == 1 && c.maxCount == 1)
@@ -176,11 +199,11 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Change workflow stage
+  /// ✅ FIX: Change workflow stage with proper cleanup
   Future<void> changeStage(WorkflowStage stage) async {
     if (stage.id == _selectedStage?.id) return;
 
-    // If nodes exist, clear them (stage change warning should be handled in UI)
+    // Clear workflow data and reset required nodes flag
     _template = _template.copyWith(
       stage: stage.name,
       selectedStage: stage,
@@ -189,6 +212,8 @@ class WorkflowProvider with ChangeNotifier {
     );
     
     _selectedStage = stage;
+    _requiredNodesAdded = false; // Reset flag for new stage
+    
     await loadStageConstraints(stage.id);
     notifyListeners();
   }
@@ -235,15 +260,18 @@ class WorkflowProvider with ChangeNotifier {
     // Determine UI node type
     final uiNodeType = dbNode.type == 'Stop' ? 'outcome' : 'approval';
     
-    // Determine outcome type for Stop nodes
+    // ✅ DATABASE-DRIVEN: Get outcome type from display_name
     String? outcomeType;
     if (dbNode.type == 'Stop') {
-      const outcomeMapping = {
-        2: 'approved',
-        3: 'hold',
-        4: 'rejected',
-      };
-      outcomeType = outcomeMapping[dbNode.id] ?? 'default';
+      // Use display_name from database API
+      outcomeType = _getOutcomeTypeFromDisplayName(dbNode.displayName);
+      
+      // ✅ DEBUG: Log the outcome assignment
+      print('🎯 Creating outcome node:');
+      print('   - dbNode.id: ${dbNode.id}');
+      print('   - dbNode.name: ${dbNode.name}');
+      print('   - dbNode.displayName: ${dbNode.displayName}');
+      print('   - Assigned outcome: $outcomeType');
     }
 
     // Get color
@@ -251,9 +279,10 @@ class WorkflowProvider with ChangeNotifier {
         ? _getColorForOutcome(outcomeType ?? 'default')
         : const Color(0xFF3B82F6);
 
-    // Create new node
+    // Create new node with guaranteed unique ID
+    _nodeIdCounter++;
     final newNode = WorkflowNode(
-      id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}',
+      id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}-$_nodeIdCounter',
       type: uiNodeType,
       position: Offset(baseX, baseY),
       data: WorkflowNodeData(
@@ -271,22 +300,47 @@ class WorkflowProvider with ChangeNotifier {
       ),
     );
 
+    print('✅ Node created with outcome: ${newNode.data.outcome}');
+
     final updatedNodes = List<WorkflowNode>.from(_template.nodes)..add(newNode);
     _template = _template.copyWith(nodes: updatedNodes);
     _error = null;
     notifyListeners();
   }
 
-  /// Update node position
+  /// Update node position - FIXED: Better error handling and debugging
   void updateNodePosition(String nodeId, Offset newPosition) {
-    final updatedNodes = _template.nodes.map((node) {
-      if (node.id == nodeId) {
-        return node.copyWith(position: newPosition);
+    print('📍 updateNodePosition called');
+    print('   - nodeId: $nodeId');
+    print('   - newPosition: $newPosition');
+    print('   - Total nodes in template: ${_template.nodes.length}');
+    
+    // ✅ CRITICAL FIX: Check if node exists BEFORE updating
+    final nodeIndex = _template.nodes.indexWhere((n) => n.id == nodeId);
+    
+    if (nodeIndex == -1) {
+      print('   ❌ ERROR: Node $nodeId NOT FOUND in template!');
+      print('   - Available node IDs:');
+      for (var node in _template.nodes) {
+        print('     * ${node.id} (${node.data.label})');
       }
-      return node;
-    }).toList();
-
+      // ⚠️ DON'T call notifyListeners() if node not found!
+      return;
+    }
+    
+    final node = _template.nodes[nodeIndex];
+    print('   ✅ Found node: ${node.data.label}');
+    print('   - Old position: ${node.position}');
+    print('   - New position: $newPosition');
+    
+    // Create updated nodes list with modified position
+    final updatedNodes = List<WorkflowNode>.from(_template.nodes);
+    updatedNodes[nodeIndex] = node.copyWith(position: newPosition);
+    
+    // Update template
     _template = _template.copyWith(nodes: updatedNodes);
+    
+    print('   ✅ Position updated successfully');
     notifyListeners();
   }
 
@@ -324,7 +378,7 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Complete connection - Exit connection mode after each connection
+  /// ✅ FIX: Complete connection with correct label and clear source
   void completeConnection(String targetNodeId) {
     print('🔗 completeConnection called');
     print('   - targetNodeId: $targetNodeId');
@@ -346,38 +400,72 @@ class WorkflowProvider with ChangeNotifier {
 
     if (exists) {
       print('   ⚠️ Connection already exists');
-    } else {
-      // Determine connection label
-      final targetNode = _template.nodes.firstWhere((n) => n.id == targetNodeId);
-      String label = 'Proceed';
-      
-      if (targetNode.type == 'outcome') {
-        label = targetNode.data.outcome?.toUpperCase() ?? 'PROCEED';
-      }
-
-      final newEdge = WorkflowEdge(
-        id: 'edge-${DateTime.now().millisecondsSinceEpoch}',
-        source: _connectionSource!,
-        target: targetNodeId,
-        label: label,
-        type: 'straight',
-        data: {'condition': label.toLowerCase()},
-      );
-
-      final updatedEdges = List<WorkflowEdge>.from(_template.edges)..add(newEdge);
-      _template = _template.copyWith(edges: updatedEdges);
-      
-      print('   ✅ Connection created: $_connectionSource -> $targetNodeId');
-      print('   ✅ Total edges now: ${updatedEdges.length}');
+      notifyListeners(); // Still notify to update UI
+      return;
     }
 
-    // ✅ FIX: Exit connection mode after each connection
-    // User must click blue circle again to create another connection
-    print('   🔄 EXITING connection mode');
-    _connectionMode = false;
+    // Get target node to determine label
+    final targetNode = _template.nodes.firstWhere(
+      (n) => n.id == targetNodeId,
+      orElse: () => WorkflowNode(
+        id: '',
+        type: 'approval',
+        position: Offset.zero,
+        data: WorkflowNodeData(label: '', title: '', color: const Color(0xFF3B82F6)),
+      ),
+    );
+    
+    if (targetNode.id.isEmpty) {
+      print('   ⚠️ Target node not found!');
+      return;
+    }
+    
+    // ✅ DATABASE-DRIVEN: Correct label determination from node data
+    String label = 'Proceed';
+    String condition = 'approved';
+    
+    if (targetNode.type == 'outcome' && targetNode.data.outcome != null) {
+      // Use the ACTUAL outcome stored in the node (derived from database display_name)
+      final outcome = targetNode.data.outcome!;
+      label = outcome.toUpperCase(); // APPROVED, HOLD, REJECTED
+      condition = outcome.toLowerCase(); // approved, hold, rejected
+      
+      print('   🎯 Creating edge to outcome node:');
+      print('      - Target outcome: $outcome');
+      print('      - Edge label: $label');
+      print('      - Edge condition: $condition');
+    } else if (targetNode.type == 'approval') {
+      // For Process nodes, use "Proceed to" prefix
+      label = 'Proceed to ${targetNode.data.label}';
+      condition = 'approved';
+    }
+
+    // Create edge with guaranteed unique ID
+    _edgeIdCounter++;
+    final newEdge = WorkflowEdge(
+      id: 'edge-${DateTime.now().millisecondsSinceEpoch}-$_edgeIdCounter',
+      source: _connectionSource!,
+      target: targetNodeId,
+      label: label,
+      type: 'straight',
+      data: {'condition': condition},
+    );
+
+    final updatedEdges = List<WorkflowEdge>.from(_template.edges)..add(newEdge);
+    _template = _template.copyWith(edges: updatedEdges);
+    
+    print('   ✅ Connection created: $_connectionSource -> $targetNodeId');
+    print('   ✅ Edge label: $label, condition: $condition');
+    print('   ✅ Total edges now: ${updatedEdges.length}');
+
+    // ✅ CRITICAL FIX: Clear connection source but keep mode active
+    // This removes the dashed preview line while keeping connection mode on
+    // User must click connection handle again to start new connection
     _connectionSource = null;
-    print('   - _connectionMode now: $_connectionMode');
-    print('   - _connectionSource now: $_connectionSource');
+    print('   🔄 Connection mode stays ACTIVE, but source cleared');
+    print('   🔄 Dashed preview line will disappear');
+    print('   🔄 User must click connection handle again for next connection');
+    
     notifyListeners();
   }
 
@@ -449,6 +537,23 @@ class WorkflowProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  /// ✅ DATABASE-DRIVEN: Convert display_name to outcome type
+  String _getOutcomeTypeFromDisplayName(String displayName) {
+    final normalized = displayName.toLowerCase().trim();
+    
+    // Handle common variations
+    if (normalized == 'approved' || normalized == 'approve') {
+      return 'approved';
+    } else if (normalized == 'hold' || normalized == 'on hold') {
+      return 'hold';
+    } else if (normalized == 'reject' || normalized == 'rejected') {
+      return 'rejected';
+    }
+    
+    // Default: use normalized display_name as-is
+    return normalized;
   }
 
   /// Get color for outcome

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:html' as html; // ✅ For web navigation (same tab)
 import '../providers/workflow_provider.dart';
 import '../models/workflow_template.dart';
 import '../widgets/workflow_canvas.dart';
@@ -24,6 +27,10 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final ScrollController _canvasScrollController = ScrollController();
 
+  // ✅ NEW: Available departments list
+  List<Department> _availableDepartments = [];
+  bool _loadingDepartments = false;
+
   @override
   void initState() {
     super.initState();
@@ -35,14 +42,75 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   Future<void> _initializeWorkflow() async {
     final provider = Provider.of<WorkflowProvider>(context, listen: false);
     
+    // Step 1: Initialize workflow data (stages, nodes, employees)
     await provider.initialize();
     
-    if (widget.templateId != null && widget.mode == 'edit') {
+    // Step 2: Load departments
+    await _loadDepartments();
+    
+    // Step 3: ✅ Load existing template if in edit/view mode
+    if (widget.templateId != null && (widget.mode == 'edit' || widget.mode == 'view')) {
+      print('📥 Initializing in ${widget.mode} mode with template ID: ${widget.templateId}');
       await provider.loadTemplate(widget.templateId!);
     }
     
+    // Step 4: Update text controllers with loaded data
     _nameController.text = provider.template.name;
     _descriptionController.text = provider.template.description;
+  }
+
+  // ✅ NEW: Load departments from API - EXACTLY like React
+  Future<void> _loadDepartments() async {
+    setState(() {
+      _loadingDepartments = true;
+    });
+
+    try {
+      // React code reference (Line 269-282):
+      // const deptResponse = await axios.get(`${ApiURL}reference-data/?reference_type=9`);
+      // const departmentsList = deptResponse.data.results?.map((dept) => ({
+      //   id: dept.id,
+      //   name: dept.reference_value,
+      //   code: dept.reference_code || dept.reference_value,
+      // })) || [];
+      
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/reference-data/?reference_type=9'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Parse the 'results' array from response
+        final results = data['results'] as List<dynamic>?;
+        
+        if (results != null && results.isNotEmpty) {
+          _availableDepartments = results.map((dept) {
+            return Department(
+              id: dept['id'] as int,
+              name: dept['reference_value'] as String,
+            );
+          }).toList();
+          
+          print('✅ Loaded ${_availableDepartments.length} departments from API');
+          print('   Departments: ${_availableDepartments.map((d) => d.name).join(", ")}');
+        } else {
+          print('⚠️ No departments found in API response');
+          _availableDepartments = [];
+        }
+      } else {
+        print('❌ Failed to load departments: HTTP ${response.statusCode}');
+        _availableDepartments = [];
+      }
+    } catch (e) {
+      print('❌ Error loading departments: $e');
+      print('   Make sure the API is running at http://127.0.0.1:8000');
+      _availableDepartments = [];
+    } finally {
+      setState(() {
+        _loadingDepartments = false;
+      });
+    }
   }
 
   @override
@@ -63,7 +131,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
               // Error banner
               if (provider.error != null) _buildErrorBanner(provider),
               
-              // Connection mode banner
+              // ✅ FIX: Connection mode banner - persists until Cancel clicked
               if (provider.connectionMode) _buildConnectionBanner(provider),
               
               // Main content
@@ -111,6 +179,18 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                // ✅ Show template ID in edit/view mode
+                if (widget.templateId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Template ID: ${widget.templateId}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -118,8 +198,24 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           if (widget.mode != 'view') ...[
             ElevatedButton.icon(
               onPressed: provider.saving ? null : () => _saveTemplate(provider),
-              icon: Icon(provider.saving ? Icons.hourglass_empty : Icons.save),
-              label: Text(provider.saving ? 'Saving...' : 'Save Template'),
+              // ✅ Different icon for edit mode
+              icon: Icon(
+                provider.saving
+                    ? Icons.hourglass_empty
+                    : widget.mode == 'edit'
+                        ? Icons.edit
+                        : Icons.save,
+              ),
+              // ✅ Different text for edit mode
+              label: Text(
+                provider.saving
+                    ? widget.mode == 'edit'
+                        ? 'Updating...'
+                        : 'Saving...'
+                    : widget.mode == 'edit'
+                        ? 'Update Template'
+                        : 'Save Template',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -129,7 +225,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             const SizedBox(width: 12),
           ],
           OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => _handleCancel(),
             child: Text(widget.mode == 'view' ? 'Close' : 'Cancel'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -175,13 +271,17 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Connection Mode: Click on a target node to create connection',
+              'Connection Mode: Click on a target node to create connection. Click Cancel or press ESC to exit.',
               style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
             ),
           ),
           TextButton(
             onPressed: () => provider.cancelConnection(),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue,
+            ),
+            child: const Text('Cancel Connection'),
           ),
         ],
       ),
@@ -235,22 +335,32 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             const SizedBox(height: 16),
             
             // Stage dropdown
-            DropdownButtonFormField<WorkflowStage>(
-              value: provider.selectedStage,
+            DropdownButtonFormField<int>(
+              value: provider.selectedStage?.id,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Workflow Stage *',
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               items: provider.availableStages.map((stage) {
-                return DropdownMenuItem(
-                  value: stage,
-                  child: Text(stage.description),
+                return DropdownMenuItem<int>(
+                  value: stage.id,
+                  child: Text(
+                    stage.description,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 );
               }).toList(),
               onChanged: widget.mode == 'view'
                   ? null
-                  : (stage) async {
-                      if (stage != null) {
+                  : (stageId) async {
+                      if (stageId != null) {
+                        final stage = provider.availableStages.firstWhere(
+                          (s) => s.id == stageId,
+                        );
+                        
                         if (provider.template.nodes.isNotEmpty) {
                           final confirm = await _showStageChangeWarning();
                           if (confirm == true) {
@@ -262,6 +372,52 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                       }
                     },
             ),
+            const SizedBox(height: 16),
+            
+            // ✅ NEW: Department dropdown
+            if (_loadingDepartments)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else
+              DropdownButtonFormField<int>(
+                value: provider.template.department,
+                isExpanded: true, // ✅ FIX: Prevent overflow
+                decoration: const InputDecoration(
+                  labelText: 'Department',
+                  border: OutlineInputBorder(),
+                  hintText: 'Optional',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                items: [
+                  const DropdownMenuItem<int>(
+                    value: null,
+                    child: Text(
+                      '-- Global --',
+                      overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                      maxLines: 1,
+                    ),
+                  ),
+                  ..._availableDepartments.map((dept) {
+                    return DropdownMenuItem<int>(
+                      value: dept.id,
+                      child: Text(
+                        dept.name,
+                        overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                ],
+                onChanged: widget.mode == 'view'
+                    ? null
+                    : (value) {
+                        provider.updateTemplateInfo(department: value);
+                      },
+              ),
             const SizedBox(height: 24),
             
             // Node Palette
@@ -282,7 +438,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Drag nodes to the canvas or click to add',
+          'Click to add nodes to the workflow',
           style: TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 16),
@@ -303,6 +459,11 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                 .where((n) => n.data.dbNodeId == constraint.node.id)
                 .length;
             final canAdd = existingCount < constraint.maxCount;
+            
+            // ✅ FIX: Filter out required nodes (min=1, max=1) from palette
+            if (constraint.minCount == 1 && constraint.maxCount == 1) {
+              return const SizedBox.shrink();
+            }
             
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -379,8 +540,12 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             },
             onNodeTap: (nodeId) {
               if (widget.mode != 'view') {
-                provider.selectNode(nodeId);
-                _showNodeEditDialog(provider, nodeId);
+                final node = provider.template.nodes.firstWhere((n) => n.id == nodeId);
+                // Only show edit dialog for approval nodes, not outcome nodes
+                if (node.type == 'approval') {
+                  provider.selectNode(nodeId);
+                  _showNodeEditDialog(provider, nodeId);
+                }
               }
             },
             connectionMode: provider.connectionMode,
@@ -404,21 +569,42 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     );
   }
 
+  // ✅ Handle cancel button - Navigate to Django templates page (same tab)
+  void _handleCancel() {
+    // React code: window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+    // Flutter web: Use dart:html for same-tab navigation
+    html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+  }
+
+  // ✅ Handle save template - Show success then navigate to templates page
   Future<void> _saveTemplate(WorkflowProvider provider) async {
     final success = await provider.saveTemplate();
     
     if (success) {
       if (!mounted) return;
+      
+      // ✅ Different message based on mode
+      final message = widget.mode == 'edit'
+          ? '✅ Workflow template updated successfully!'
+          : '✅ Workflow template created successfully!';
+      
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Template saved successfully!'),
+        SnackBar(
+          content: Text(message),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
         ),
       );
-      Navigator.of(context).pop();
+      
+      // React code: After save, calls handleClose() → window.location.href
+      // Flutter web: Navigate to Django templates page (same tab)
+      await Future.delayed(const Duration(milliseconds: 1000)); // Let user see success message
+      html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
     }
   }
 
+  // ✅ FIX: Stage change warning dialog
   Future<bool?> _showStageChangeWarning() {
     return showDialog<bool>(
       context: context,
@@ -480,4 +666,12 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     _canvasScrollController.dispose();
     super.dispose();
   }
+}
+
+// ✅ NEW: Department model
+class Department {
+  final int id;
+  final String name;
+
+  Department({required this.id, required this.name});
 }

@@ -1,18 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
+import 'dart:html' as html;
 import 'providers/workflow_provider.dart';
 import 'screens/workflow_creation_screen.dart';
 
 void main() {
-  // Remove # from URL for web
   setPathUrlStrategy();
-  
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
+
+  Widget _buildErrorScreen(String title, String message) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 80, color: Colors.red),
+              const SizedBox(height: 24),
+              Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+                },
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to Templates'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,10 +57,7 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-          ),
+          appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
           visualDensity: VisualDensity.adaptivePlatformDensity,
           scrollbarTheme: ScrollbarThemeData(
             thumbVisibility: MaterialStateProperty.all(true),
@@ -39,11 +66,17 @@ class MyApp extends StatelessWidget {
           ),
         ),
         onGenerateRoute: (settings) {
-          // Remove trailing slash
-          final path = settings.name?.replaceAll(RegExp(r'/$'), '') ?? '/';
+          final uri = Uri.parse(settings.name ?? '/');
+          final path = uri.path.replaceAll(RegExp(r'/$'), '');
+          final queryParams = uri.queryParameters;
+          final templateId = int.tryParse(queryParams['id'] ?? '');
           
-          print('🔍 Route requested: ${settings.name} -> $path');
+          print('🔍 Route: ${settings.name}');
+          print('📂 Path: $path');
+          print('📊 Query: $queryParams');
+          if (templateId != null) print('🎯 Template ID: $templateId');
           
+          // ✅ EXACT MATCH ROUTING
           switch (path) {
             case '/workflow-creation':
             case '/create':
@@ -51,17 +84,45 @@ class MyApp extends StatelessWidget {
                 settings: settings,
                 builder: (context) => const WorkflowCreationScreen(mode: 'create'),
               );
+            
             case '/edit':
+              if (templateId == null) {
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => _buildErrorScreen(
+                    'Template ID Required',
+                    'Edit mode requires ?id=123 parameter',
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const WorkflowCreationScreen(mode: 'edit'),
+                builder: (context) => WorkflowCreationScreen(
+                  templateId: templateId,
+                  mode: 'edit',
+                ),
               );
+            
             case '/view':
+              if (templateId == null) {
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => _buildErrorScreen(
+                    'Template ID Required',
+                    'View mode requires ?id=123 parameter',
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const WorkflowCreationScreen(mode: 'view'),
+                builder: (context) => WorkflowCreationScreen(
+                  templateId: templateId,
+                  mode: 'view',
+                ),
               );
+            
             case '/':
+            case '':
             default:
               return MaterialPageRoute(
                 settings: settings,
@@ -84,11 +145,7 @@ class WorkflowListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('HRMS Workflow Management'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {},
-            tooltip: 'Refresh',
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: () {}, tooltip: 'Refresh'),
         ],
       ),
       body: Center(
@@ -99,29 +156,15 @@ class WorkflowListScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.account_tree,
-                  size: 120,
-                  color: Colors.blue,
-                ),
+                const Icon(Icons.account_tree, size: 120, color: Colors.blue),
                 const SizedBox(height: 32),
-                const Text(
-                  'Workflow Management System',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Workflow Management System', 
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
                 const SizedBox(height: 16),
-                const Text(
-                  'Create and manage workflow templates for your organization',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Create and manage workflow templates for your organization',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                  textAlign: TextAlign.center),
                 const SizedBox(height: 48),
                 Wrap(
                   spacing: 16,
@@ -132,14 +175,9 @@ class WorkflowListScreen extends StatelessWidget {
                       width: 200,
                       height: 56,
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/workflow-creation');
-                        },
+                        onPressed: () => Navigator.pushNamed(context, '/workflow-creation'),
                         icon: const Icon(Icons.add, size: 24),
-                        label: const Text(
-                          'Create Workflow',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        label: const Text('Create Workflow', style: TextStyle(fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
@@ -150,28 +188,18 @@ class WorkflowListScreen extends StatelessWidget {
                       width: 200,
                       height: 56,
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/edit');
-                        },
+                        onPressed: () => Navigator.pushNamed(context, '/edit'),
                         icon: const Icon(Icons.edit, size: 24),
-                        label: const Text(
-                          'Edit Template',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        label: const Text('Edit Template', style: TextStyle(fontSize: 16)),
                       ),
                     ),
                     SizedBox(
                       width: 200,
                       height: 56,
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/view');
-                        },
+                        onPressed: () => Navigator.pushNamed(context, '/view'),
                         icon: const Icon(Icons.visibility, size: 24),
-                        label: const Text(
-                          'View Template',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        label: const Text('View Template', style: TextStyle(fontSize: 16)),
                       ),
                     ),
                   ],
@@ -188,10 +216,8 @@ class WorkflowListScreen extends StatelessWidget {
                     children: [
                       Icon(Icons.info_outline, color: Colors.blue.shade700),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Connected to Django API at http://127.0.0.1:8000',
-                        style: TextStyle(fontSize: 14),
-                      ),
+                      const Text('Connected to Django API at http://127.0.0.1:8000',
+                        style: TextStyle(fontSize: 14)),
                     ],
                   ),
                 ),

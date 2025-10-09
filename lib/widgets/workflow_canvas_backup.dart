@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import '../models/workflow_node.dart' as wf;
 import '../models/workflow_edge.dart';
 
-/// ✅ FIXED: Proper drag offset handling to prevent node jumping
 class WorkflowCanvas extends StatefulWidget {
   final List<wf.WorkflowNode> nodes;
   final List<WorkflowEdge> edges;
@@ -41,13 +40,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
   static const double nodeWidth = 200.0;
   static const double nodeHeight = 80.0;
 
-  // ✅ FIX: Track node's INITIAL position when drag starts
+  // Drag/click detection
   bool _dragMode = false;
   String? _draggedNodeId;
-  Offset? _nodeStartPosition; // Node's position when drag started
-  Offset _dragOffset = Offset.zero; // Where in the node user clicked
+  Offset _dragOffset = Offset.zero;
   Offset _mousePosition = Offset.zero;
-  Offset? _dragStartMousePos; // Mouse position when drag started
+  Offset? _dragStartPosition;
   static const double _dragThreshold = 5.0;
   bool _justFinishedDrag = false;
 
@@ -106,8 +104,7 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
               ),
               if (!widget.readonly)
                 ...widget.edges.map((edge) => _buildEdgeDeleteButton(edge)),
-              // ✅ FIX: Add keys to prevent widget confusion during rebuilds
-              ...widget.nodes.map((node) => _buildNode(node, key: ValueKey(node.id))),
+              ...widget.nodes.map((node) => _buildNode(node)),
             ],
           ),
         ),
@@ -115,7 +112,7 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
     );
   }
 
-  Widget _buildNode(wf.WorkflowNode node, {required Key key}) {
+  Widget _buildNode(wf.WorkflowNode node) {
     final isApprovalNode = node.type == 'approval' || node.type == 'interview' || node.type == 'panelist';
     final isOutcomeNode = node.type == 'outcome';
     final isConnectionSource = widget.connectionSource == node.id;
@@ -154,36 +151,23 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
     }
 
     return Positioned(
-      key: key,  // ✅ FIX: Unique key to track this widget
       left: node.position.dx,
       top: node.position.dy,
       child: GestureDetector(
-        // ✅ FIX: Allow child GestureDetectors (connection targets) to receive taps
-        behavior: HitTestBehavior.deferToChild,
-        // ✅ FIX: Store BOTH node position AND click offset
+        behavior: HitTestBehavior.opaque,
+        // ✅ FIX: Correct drag offset calculation
         onPanStart: widget.connectionMode || widget.readonly ? null : (details) {
           setState(() {
-            // Where in the node user clicked (0,0 to nodeWidth,nodeHeight)
+            // Store where user clicked WITHIN the node (local position)
             _dragOffset = details.localPosition;
-            // Node's current position when drag started
-            _nodeStartPosition = node.position;
-            // Mouse global position when drag started
-            _dragStartMousePos = details.globalPosition;
             _draggedNodeId = node.id;
+            _dragStartPosition = details.globalPosition;
           });
-          print('🎯 Drag START:');
-          print('   - Node position: ${node.position}');
-          print('   - Click offset in node: ${details.localPosition}');
-          print('   - Mouse global: ${details.globalPosition}');
+          print('🎯 Drag start: localPosition=${details.localPosition}, nodePos=${node.position}');
         },
         onPanUpdate: widget.connectionMode || widget.readonly ? null : (details) {
-          // ✅ CRITICAL FIX: Only process if THIS node is being dragged
-          if (_draggedNodeId != node.id) {
-            return; // Wrong node, ignore this update
-          }
-          
-          if (_dragStartMousePos != null && _nodeStartPosition != null) {
-            final distance = (details.globalPosition - _dragStartMousePos!).distance;
+          if (_draggedNodeId == node.id && _dragStartPosition != null) {
+            final distance = (details.globalPosition - _dragStartPosition!).distance;
             
             // Only activate drag mode if moved beyond threshold
             if (distance > _dragThreshold) {
@@ -191,17 +175,12 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                 setState(() {
                   _dragMode = true;
                 });
-                print('🔄 Drag MODE ACTIVATED (moved > ${_dragThreshold}px)');
               }
               
-              // ✅ CRITICAL FIX: Use delta for smooth dragging
-              // Calculate total movement from start position
-              final totalDeltaX = details.globalPosition.dx - _dragStartMousePos!.dx;
-              final totalDeltaY = details.globalPosition.dy - _dragStartMousePos!.dy;
-              
-              // Apply to original node position
-              final newX = _nodeStartPosition!.dx + totalDeltaX;
-              final newY = _nodeStartPosition!.dy + totalDeltaY;
+              // ✅ FIX: Calculate new position correctly
+              // details.delta gives us the movement since last update
+              final newX = node.position.dx + details.delta.dx;
+              final newY = node.position.dy + details.delta.dy;
               
               // Clamp to canvas bounds
               final clampedX = newX.clamp(0.0, 2200.0 - nodeWidth);
@@ -209,25 +188,22 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
               
               final snappedPos = _snapToGrid(Offset(clampedX, clampedY));
               
-              print('📍 Drag UPDATE: newPos=$snappedPos (delta: $totalDeltaX, $totalDeltaY)');
               widget.onNodeDrag(node.id, snappedPos);
             }
           }
         },
         onPanEnd: widget.connectionMode || widget.readonly ? null : (details) {
           final wasDragging = _dragMode;
-          print('🏁 Drag END: wasDragging=$wasDragging');
           
           setState(() {
             _dragMode = false;
             _draggedNodeId = null;
             _dragOffset = Offset.zero;
-            _nodeStartPosition = null;
-            _dragStartMousePos = null;
+            _dragStartPosition = null;
             
             if (wasDragging) {
               _justFinishedDrag = true;
-              Future.delayed(const Duration(milliseconds: 150), () {
+              Future.delayed(const Duration(milliseconds: 100), () {
                 if (mounted) {
                   setState(() {
                     _justFinishedDrag = false;
@@ -238,22 +214,18 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
           });
         },
         onTap: () {
-          print('🖱️ Node TAP: ${node.id}');
-          print('   - dragMode: $_dragMode');
-          print('   - justFinished: $_justFinishedDrag');
+          print('🖱️ Node tap: ${node.id}, dragMode: $_dragMode, justFinished: $_justFinishedDrag');
           
           if (!_dragMode && !_justFinishedDrag) {
             if (widget.connectionMode) {
               if (widget.connectionSource != node.id) {
-                print('   ✅ Complete connection');
                 widget.onCompleteConnection?.call(node.id);
               }
             } else {
-              print('   ✅ Open node dialog');
               widget.onNodeTap(node.id);
             }
           } else {
-            print('   ⚠️ Tap IGNORED (drag state)');
+            print('   ⚠️ Tap ignored because of drag state');
           }
         },
         child: MouseRegion(
@@ -329,7 +301,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                     ],
                   ),
                 ),
-                // Connection handles for approval nodes
                 if (!widget.readonly && isApprovalNode)
                   Positioned(
                     right: -14,
@@ -368,53 +339,42 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
                       ),
                     ),
                   ),
-                // Target indicator in connection mode
                 if (!widget.readonly && widget.connectionMode && widget.connectionSource != node.id)
                   Positioned(
-                    left: -20,  // ✅ FIX: More accessible position
-                    top: nodeHeight / 2 - 20,
+                    left: -14,
+                    top: nodeHeight / 2 - 14,
                     child: GestureDetector(
-                      // ✅ FIX: Explicit behavior to ensure tap is received
-                      behavior: HitTestBehavior.opaque,
                       onTap: () {
-                        print('🟢 Connection target tapped: ${node.data.label}');
                         widget.onCompleteConnection?.call(node.id);
                       },
                       child: MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: Container(
-                          width: 40,  // ✅ FIX: Larger clickable area
-                          height: 40, // ✅ FIX: Larger clickable area
-                          alignment: Alignment.center,
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade500,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.green.withOpacity(0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.circle,
-                                color: Colors.white,
-                                size: 10,
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade500,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.circle,
+                              color: Colors.white,
+                              size: 10,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                // Position indicator while dragging
                 if (isDragging)
                   Positioned(
                     top: -35,
@@ -513,7 +473,6 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
   }
 }
 
-// Grid Painter (unchanged)
 class GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -565,7 +524,6 @@ class GridPainter extends CustomPainter {
   bool shouldRepaint(GridPainter oldDelegate) => false;
 }
 
-// Edges Painter (unchanged - keeping your existing implementation)
 class EdgesPainter extends CustomPainter {
   final List<wf.WorkflowNode> nodes;
   final List<WorkflowEdge> edges;

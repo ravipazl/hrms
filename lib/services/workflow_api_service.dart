@@ -287,59 +287,93 @@ class WorkflowApiService {
 
   /// Helper: Convert database template format to UI format
   WorkflowTemplate _convertDbTemplateToUiFormat(Map<String, dynamic> dbTemplate) {
-    // Convert nodes
+    print('🔍 Converting DB template to UI format...');
+    print('   Template: ${dbTemplate['name']}');
+    
+    // ✅ EXACTLY like React: dbNode.node_details?.type === 'Stop'
     final List<WorkflowNode> uiNodes = (dbTemplate['nodes'] as List?)
             ?.map((dbNode) {
-              final nodeType = _mapDbNodeTypeToUiType(dbNode['node']['type']);
-              return WorkflowNode(
-                id: dbNode['node_instance_id'],
-                type: nodeType,
-                position: Offset(
-                  (dbNode['position_x'] ?? 400).toDouble(),
-                  (dbNode['position_y'] ?? 280).toDouble(),
-                ),
-                data: WorkflowNodeData(
-                  label: dbNode['description'] ?? '',
-                  title: dbNode['description'] ?? '',
-                  color: Color(int.parse(
-                    dbNode['additional_info']?['color']
-                            ?.replaceAll('#', '0xFF') ??
-                        '0xFF3B82F6',
-                  )),
-                  stepOrder: dbNode['node_order'] ?? 1,
-                  dbNodeId: dbNode['node'],
-                  nodeType: dbNode['additional_info']?['node_type'],
-                  selectedEmployeeId: int.tryParse(
-                      dbNode['additional_info']?['emp_id']?.toString() ?? ''),
-                  employeeEmail: dbNode['additional_info']?['email_id'],
-                  username: dbNode['additional_info']?['username'],
-                  employeeName: dbNode['additional_info']?['employee_name'],
-                  departmentId: dbNode['additional_info']?['department_id'],
-                  departmentName: dbNode['additional_info']?['department_name'],
-                  outcome: _mapDbNodeTypeToOutcome(dbNode['node']['type']),
-                ),
-              );
+              try {
+                // React: dbNode.node_details?.type === 'Stop' ? 'outcome' : 'approval'
+                final nodeDetails = dbNode['node_details'] as Map<String, dynamic>?;
+                final nodeType = (nodeDetails?['type'] == 'Stop') ? 'outcome' : 'approval';
+                
+                // React: dbNode.additional_info?.color || '#3B82F6'
+                final additionalInfo = dbNode['additional_info'] as Map<String, dynamic>?;
+                final colorStr = additionalInfo?['color'] ?? '#3B82F6';
+                
+                return WorkflowNode(
+                  id: dbNode['node_instance_id'] ?? 'node-${dbNode['id']}',
+                  type: nodeType,
+                  position: Offset(
+                    (dbNode['position_x'] ?? 400).toDouble(),
+                    (dbNode['position_y'] ?? 280).toDouble(),
+                  ),
+                  data: WorkflowNodeData(
+                    label: dbNode['description'] ?? '',
+                    title: dbNode['description'] ?? '',
+                    color: Color(int.parse(colorStr.replaceAll('#', '0xFF'))),
+                    stepOrder: dbNode['node_order'] ?? 1,
+                    
+                    // React: dbNodeId: dbNode.node
+                    dbNodeId: dbNode['node'],
+                    
+                    // React: nodeType: dbNode.additional_info?.node_type || dbNode.node_details?.display_name
+                    nodeType: additionalInfo?['node_type'] ?? nodeDetails?['display_name'],
+                    
+                    // Employee details from additional_info
+                    selectedEmployeeId: _parseToInt(additionalInfo?['emp_id']),
+                    employeeEmail: additionalInfo?['email_id'],
+                    username: additionalInfo?['username'],
+                    employeeName: additionalInfo?['employee_name'],
+                    userId: additionalInfo?['emp_id']?.toString(),
+                    departmentId: additionalInfo?['department_id']?.toString(),
+                    departmentName: additionalInfo?['department_name'],
+                    
+                    // React: outcome: dbNode.additional_info?.outcome
+                    outcome: additionalInfo?['outcome'],
+                    comment: additionalInfo?['comment'] ?? '',
+                  ),
+                );
+              } catch (e) {
+                print('❌ Error converting node: $e');
+                print('   Node data: $dbNode');
+                rethrow;
+              }
             })
             .toList() ??
         [];
 
-    // Convert edges
+    // ✅ EXACTLY like React: Convert edges
     final List<WorkflowEdge> uiEdges = (dbTemplate['edges'] as List?)
             ?.map((dbEdge) {
-              return WorkflowEdge(
-                id: 'edge-${dbEdge['id']}',
-                source: dbEdge['start_node_instance']['node_instance_id'],
-                target: dbEdge['end_node_instance']['node_instance_id'],
-                label: _capitalizeFirst(dbEdge['outcome'] ?? 'Approved'),
-                type: 'straight',
-                data: dbEdge['edge_conditions'],
-                order: dbEdge['edge_order'],
-                isStart: dbEdge['flow_start'],
-                isEnd: dbEdge['flow_end'],
-              );
+              try {
+                // React: source: dbEdge.start_node_details?.node_instance_id
+                final startNodeDetails = dbEdge['start_node_details'] ?? dbEdge['start_node_instance'];
+                final endNodeDetails = dbEdge['end_node_details'] ?? dbEdge['end_node_instance'];
+                
+                return WorkflowEdge(
+                  id: 'edge-${dbEdge['id']}',
+                  source: startNodeDetails['node_instance_id'],
+                  target: endNodeDetails['node_instance_id'],
+                  // React: label: dbEdge.outcome?.charAt(0).toUpperCase() + dbEdge.outcome?.slice(1)
+                  label: _capitalizeFirst(dbEdge['outcome'] ?? 'Approved'),
+                  type: 'straight',
+                  data: dbEdge['edge_conditions'] as Map<String, dynamic>?,
+                  order: dbEdge['edge_order'],
+                  isStart: dbEdge['flow_start'],
+                  isEnd: dbEdge['flow_end'],
+                );
+              } catch (e) {
+                print('❌ Error converting edge: $e');
+                print('   Edge data: $dbEdge');
+                rethrow;
+              }
             })
             .toList() ??
         [];
+
+    print('✅ Converted: ${uiNodes.length} nodes, ${uiEdges.length} edges');
 
     return WorkflowTemplate(
       id: dbTemplate['id'],
@@ -355,7 +389,7 @@ class WorkflowApiService {
       isGlobalDefault: dbTemplate['is_default'] ?? false,
       nodes: uiNodes,
       edges: uiEdges,
-      templateMetadata: dbTemplate['template_metadata'],
+      templateMetadata: dbTemplate['template_metadata'] as Map<String, dynamic>?,
       createdAt: DateTime.tryParse(dbTemplate['created_at'] ?? ''),
       updatedAt: DateTime.tryParse(dbTemplate['updated_at'] ?? ''),
     );
@@ -386,5 +420,13 @@ class WorkflowApiService {
   String _capitalizeFirst(String text) {
     if (text.isEmpty) return text;
     return text[0].toUpperCase() + text.substring(1);
+  }
+
+  /// Helper: Parse to int safely (handles both int and String)
+  int? _parseToInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 }

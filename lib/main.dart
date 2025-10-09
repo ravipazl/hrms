@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hrms/models/requisition.dart';
+import 'package:hrms/providers/requisition_provider.dart';
+import 'package:hrms/screens/requisition_form_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -50,6 +53,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => WorkflowProvider()),
+        ChangeNotifierProvider(create: (_) => RequisitionProvider()),
       ],
       child: MaterialApp(
         title: 'HRMS Workflow Management',
@@ -72,10 +76,19 @@ class MyApp extends StatelessWidget {
           final queryParams = uri.queryParameters;
           final templateId = int.tryParse(queryParams['id'] ?? '');
           
-          print('🔍 Route: ${settings.name}');
-          print('📂 Path: $path');
-          print('📊 Query: $queryParams');
-          if (templateId != null) print('🎯 Template ID: $templateId');
+          // Check for requisition edit route pattern with ID in path
+          if (path.contains('/reqfrom/')) {
+            final regex = RegExp(r'/reqfrom/(\d+)');
+            final match = regex.firstMatch(path);
+            if (match != null) {
+              final id = int.parse(match.group(1)!);
+              print('✅ Requisition edit route detected with ID: $id');
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => RequisitionEditWrapper(requisitionId: id),
+              );
+            }
+          }
           
           // ✅ EXACT MATCH ROUTING
           switch (path) {
@@ -122,7 +135,13 @@ class MyApp extends StatelessWidget {
                 ),
               );
             
-            case '/':
+            // Requisition create route
+            case '/reqfrom':
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => const RequisitionFormScreen(),
+              );
+            
             case '':
             default:
               return MaterialPageRoute(
@@ -230,3 +249,166 @@ class WorkflowListScreen extends StatelessWidget {
     );
   }
 }
+
+class RouterWidget extends StatefulWidget {
+  const RouterWidget({Key? key}) : super(key: key);
+
+  @override
+  State<RouterWidget> createState() => _RouterWidgetState();
+}
+
+class _RouterWidgetState extends State<RouterWidget> {
+  bool _isLoading = true;
+  Widget? _targetWidget;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCurrentRoute();
+  }
+
+  void _checkCurrentRoute() async {
+    // Get current URL
+    final uri = Uri.base;
+    final path = uri.path;
+    
+    print('🌐 Current URL: ${uri.toString()}');
+    print('📍 Current path: $path');
+    
+    // Check for edit route pattern
+    if (path.contains('/reqfrom/')) {
+      final regex = RegExp(r'/reqfrom/(\d+)');
+      final match = regex.firstMatch(path);
+      if (match != null) {
+        final id = int.parse(match.group(1)!);
+        print('✅ Edit route detected with ID: $id');
+        _targetWidget = RequisitionEditWrapper(requisitionId: id);
+        setState(() => _isLoading = false);
+        return;
+      }
+    }
+    
+
+    
+    // Default to create form
+    print('🏠 Default route, showing create form');
+    _targetWidget = const RequisitionFormScreen();
+    setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    return _targetWidget ?? const RequisitionFormScreen();
+  }
+}
+
+class RequisitionEditWrapper extends StatelessWidget {
+  final int requisitionId;
+
+  const RequisitionEditWrapper({Key? key, required this.requisitionId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    print('🔧 Building RequisitionEditWrapper for ID: $requisitionId');
+    
+    return FutureBuilder<Requisition?>(
+      future: _loadRequisitionForEdit(context, requisitionId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          print('⏳ Loading requisition data for edit...');
+          return Scaffold(
+            appBar: AppBar(
+              title: Text('Loading Requisition $requisitionId'),
+              backgroundColor: Colors.white,
+            ),
+            body: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading requisition data...'),
+                ],
+              ),
+            ),
+          );
+        }
+        
+        if (snapshot.hasError) {
+          print('❌ Error loading requisition: ${snapshot.error}');
+          return Scaffold(
+            appBar: AppBar(title: const Text('Error')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error loading requisition: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        
+      
+        // Show edit form with loaded data
+        print('✅ Showing edit form with loaded data for ID: ${snapshot.data!.id}');
+        return RequisitionFormScreen(requisition: snapshot.data);
+      },
+    );
+  }
+}
+
+
+// Data loading functions
+Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisitionId) async {
+  try {
+    print('🔍 Loading requisition for edit: $requisitionId');
+    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+    
+    // Initialize provider if not already done
+    print('🛠️ Initializing provider...');
+    if (provider.departments.isEmpty) {
+      await provider.initialize();
+    }
+    
+    // Wait a moment for initialization
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Get the specific requisition
+    print('📡 Fetching requisition data from API: /api/v1/requisition/$requisitionId/');
+    final requisition = await provider.getRequisition(requisitionId);
+    
+    if (requisition != null) {
+      print('✅ Successfully loaded requisition for edit:');
+      print('   - ID: ${requisition.id}');
+      print('   - Job Position: ${requisition.jobPosition}');
+      print('   - Department: ${requisition.department}');
+      print('   - Qualification: ${requisition.qualification}');
+      print('   - Essential Skills: ${requisition.essentialSkills}');
+      print('   - Positions count: ${requisition.positions.length}');
+    } else {
+      print('❌ Requisition $requisitionId not found for edit');
+    }
+    
+    return requisition;
+  } catch (e) {
+    print('❌ Error loading requisition for edit: $e');
+    return null;
+  }
+}
+

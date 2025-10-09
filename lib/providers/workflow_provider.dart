@@ -120,16 +120,28 @@ class WorkflowProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      print('📥 Loading template with ID: $templateId');
+      
+      // Load template from API
       _template = await _apiService.loadWorkflowTemplate(templateId);
       _selectedStage = _template.selectedStage;
       
+      print('✅ Template loaded: ${_template.name}');
+      print('   - Nodes: ${_template.nodes.length}');
+      print('   - Edges: ${_template.edges.length}');
+      print('   - Stage: ${_selectedStage?.name}');
+      print('   - Department: ${_template.department}');
+      
+      // Load stage constraints for this stage
       if (_selectedStage != null) {
         await loadStageConstraints(_selectedStage!.id);
       }
       
-      _requiredNodesAdded = true; // Already has nodes from DB
+      // Mark required nodes as already added (loaded from DB)
+      _requiredNodesAdded = true;
       _error = null;
     } catch (e) {
+      print('❌ Failed to load template: $e');
       _error = 'Failed to load template: $e';
     } finally {
       _loading = false;

@@ -42,15 +42,19 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   Future<void> _initializeWorkflow() async {
     final provider = Provider.of<WorkflowProvider>(context, listen: false);
     
+    // Step 1: Initialize workflow data (stages, nodes, employees)
     await provider.initialize();
     
-    // ✅ NEW: Load departments
+    // Step 2: Load departments
     await _loadDepartments();
     
-    if (widget.templateId != null && widget.mode == 'edit') {
+    // Step 3: ✅ Load existing template if in edit/view mode
+    if (widget.templateId != null && (widget.mode == 'edit' || widget.mode == 'view')) {
+      print('📥 Initializing in ${widget.mode} mode with template ID: ${widget.templateId}');
       await provider.loadTemplate(widget.templateId!);
     }
     
+    // Step 4: Update text controllers with loaded data
     _nameController.text = provider.template.name;
     _descriptionController.text = provider.template.description;
   }
@@ -175,6 +179,18 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                // ✅ Show template ID in edit/view mode
+                if (widget.templateId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Template ID: ${widget.templateId}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -182,8 +198,24 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           if (widget.mode != 'view') ...[
             ElevatedButton.icon(
               onPressed: provider.saving ? null : () => _saveTemplate(provider),
-              icon: Icon(provider.saving ? Icons.hourglass_empty : Icons.save),
-              label: Text(provider.saving ? 'Saving...' : 'Save Template'),
+              // ✅ Different icon for edit mode
+              icon: Icon(
+                provider.saving
+                    ? Icons.hourglass_empty
+                    : widget.mode == 'edit'
+                        ? Icons.edit
+                        : Icons.save,
+              ),
+              // ✅ Different text for edit mode
+              label: Text(
+                provider.saving
+                    ? widget.mode == 'edit'
+                        ? 'Updating...'
+                        : 'Saving...'
+                    : widget.mode == 'edit'
+                        ? 'Update Template'
+                        : 'Save Template',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -303,29 +335,32 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             const SizedBox(height: 16),
             
             // Stage dropdown
-            DropdownButtonFormField<WorkflowStage>(
-              value: provider.selectedStage,
-              isExpanded: true, // ✅ FIX: Prevent overflow
+            DropdownButtonFormField<int>(
+              value: provider.selectedStage?.id,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Workflow Stage *',
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               items: provider.availableStages.map((stage) {
-                return DropdownMenuItem(
-                  value: stage,
+                return DropdownMenuItem<int>(
+                  value: stage.id,
                   child: Text(
                     stage.description,
-                    overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                    overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
                 );
               }).toList(),
               onChanged: widget.mode == 'view'
                   ? null
-                  : (stage) async {
-                      if (stage != null) {
-                        // ✅ FIX: Show stage change warning if nodes exist
+                  : (stageId) async {
+                      if (stageId != null) {
+                        final stage = provider.availableStages.firstWhere(
+                          (s) => s.id == stageId,
+                        );
+                        
                         if (provider.template.nodes.isNotEmpty) {
                           final confirm = await _showStageChangeWarning();
                           if (confirm == true) {
@@ -548,12 +583,17 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     if (success) {
       if (!mounted) return;
       
+      // ✅ Different message based on mode
+      final message = widget.mode == 'edit'
+          ? '✅ Workflow template updated successfully!'
+          : '✅ Workflow template created successfully!';
+      
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Workflow template saved successfully!'),
+        SnackBar(
+          content: Text(message),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
       

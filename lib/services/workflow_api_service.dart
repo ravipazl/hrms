@@ -8,6 +8,7 @@ import '../models/workflow_edge.dart';
 class WorkflowApiService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
+
   /// Load all available workflow stages
   Future<List<WorkflowStage>> loadStages() async {
     try {

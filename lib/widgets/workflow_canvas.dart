@@ -772,6 +772,7 @@ class EdgesPainter extends CustomPainter {
       canvas,
       Offset(
         position.dx - textPainter.width / 2,
+        
         position.dy - textPainter.height / 2,
       ),
     );

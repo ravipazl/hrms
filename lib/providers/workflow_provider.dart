@@ -260,16 +260,11 @@ class WorkflowProvider with ChangeNotifier {
     // Determine UI node type
     final uiNodeType = dbNode.type == 'Stop' ? 'outcome' : 'approval';
     
-    // ✅ FIX: Better outcome type determination
+    // ✅ DATABASE-DRIVEN: Get outcome type from display_name
     String? outcomeType;
     if (dbNode.type == 'Stop') {
-      // Map based on node ID from database
-      const outcomeMapping = {
-        2: 'approved',
-        3: 'hold',
-        4: 'rejected',
-      };
-      outcomeType = outcomeMapping[dbNode.id];
+      // Use display_name from database API
+      outcomeType = _getOutcomeTypeFromDisplayName(dbNode.displayName);
       
       // ✅ DEBUG: Log the outcome assignment
       print('🎯 Creating outcome node:');
@@ -425,12 +420,12 @@ class WorkflowProvider with ChangeNotifier {
       return;
     }
     
-    // ✅ FIX: Correct label determination
+    // ✅ DATABASE-DRIVEN: Correct label determination from node data
     String label = 'Proceed';
     String condition = 'approved';
     
     if (targetNode.type == 'outcome' && targetNode.data.outcome != null) {
-      // Use the ACTUAL outcome stored in the node
+      // Use the ACTUAL outcome stored in the node (derived from database display_name)
       final outcome = targetNode.data.outcome!;
       label = outcome.toUpperCase(); // APPROVED, HOLD, REJECTED
       condition = outcome.toLowerCase(); // approved, hold, rejected
@@ -439,6 +434,10 @@ class WorkflowProvider with ChangeNotifier {
       print('      - Target outcome: $outcome');
       print('      - Edge label: $label');
       print('      - Edge condition: $condition');
+    } else if (targetNode.type == 'approval') {
+      // For Process nodes, use "Proceed to" prefix
+      label = 'Proceed to ${targetNode.data.label}';
+      condition = 'approved';
     }
 
     // Create edge with guaranteed unique ID
@@ -538,6 +537,23 @@ class WorkflowProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  /// ✅ DATABASE-DRIVEN: Convert display_name to outcome type
+  String _getOutcomeTypeFromDisplayName(String displayName) {
+    final normalized = displayName.toLowerCase().trim();
+    
+    // Handle common variations
+    if (normalized == 'approved' || normalized == 'approve') {
+      return 'approved';
+    } else if (normalized == 'hold' || normalized == 'on hold') {
+      return 'hold';
+    } else if (normalized == 'reject' || normalized == 'rejected') {
+      return 'rejected';
+    }
+    
+    // Default: use normalized display_name as-is
+    return normalized;
   }
 
   /// Get color for outcome

@@ -10,10 +10,10 @@ class WorkflowCreationScreen extends StatefulWidget {
   final String mode; // 'create', 'edit', 'view'
 
   const WorkflowCreationScreen({
-    Key? key,
+    super.key,
     this.templateId,
     this.mode = 'create',
-  }) : super(key: key);
+  });
 
   @override
   State<WorkflowCreationScreen> createState() => _WorkflowCreationScreenState();
@@ -130,10 +130,10 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           ],
           OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(widget.mode == 'view' ? 'Close' : 'Cancel'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             ),
+            child: Text(widget.mode == 'view' ? 'Close' : 'Cancel'),
           ),
         ],
       ),
@@ -236,7 +236,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             
             // Stage dropdown
             DropdownButtonFormField<WorkflowStage>(
-              value: provider.selectedStage,
+              initialValue: provider.selectedStage,
               decoration: const InputDecoration(
                 labelText: 'Workflow Stage *',
                 border: OutlineInputBorder(),

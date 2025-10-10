@@ -3,6 +3,7 @@ import 'package:hrms/models/requisition.dart';
 import 'package:hrms/providers/requisition_provider.dart';
 import 'package:hrms/screens/requisition_form_screen.dart';
 import 'package:hrms/screens/requisition_view_screen.dart';
+import 'package:hrms/screens/approval_action_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -88,6 +89,24 @@ class MyApp extends StatelessWidget {
                 settings: settings,
                 builder: (context) => RequisitionViewScreen(
                   requisitionId: requisitionId,
+                ),
+              );
+            }
+          }
+          
+          // ✅ NEW: Handle /approval/{stepId}?action=approved - Approval Action Page
+          if (path.contains('/approval/')) {
+            final regex = RegExp(r'/approval/(\d+)');
+            final match = regex.firstMatch(path);
+            if (match != null) {
+              final stepId = int.parse(match.group(1)!);
+              final suggestedAction = queryParams['action'] ?? 'approved';
+              print('✅ Approval action route detected with stepId: $stepId, action: $suggestedAction');
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => ApprovalActionScreen(
+                  stepId: stepId,
+                  suggestedAction: suggestedAction,
                 ),
               );
             }

@@ -535,7 +535,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
               Expanded(child: _buildPositionDetail('Employment', position.employmentTypeName ?? 'N/A')),
             ],
           ),
-          if (position.employeeName != null) ...[
+          if (position.employeeName != null && position.employeeName!.trim().isNotEmpty) ...[
             const Divider(height: 24),
             Text(
               '🔄 Replacement Employee Details',
@@ -548,7 +548,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
             if (position.dateOfResignation != null)
               _buildPositionDetail('Resignation Date', _formatDate(position.dateOfResignation!)),
           ],
-          if (position.justificationText != null) ...[
+          if (position.justificationText != null && position.justificationText!.trim().isNotEmpty) ...[
             const Divider(height: 24),
             Text(
               'Justification',

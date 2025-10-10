@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hrms/models/requisition.dart';
 import 'package:hrms/providers/requisition_provider.dart';
 import 'package:hrms/screens/requisition_form_screen.dart';
+import 'package:hrms/screens/requisition_view_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -76,7 +77,23 @@ class MyApp extends StatelessWidget {
           final queryParams = uri.queryParameters;
           final templateId = int.tryParse(queryParams['id'] ?? '');
           
-          // Check for requisition edit route pattern with ID in path
+          // ✅ NEW: Handle /reqview/{id} - Requisition View Page
+          if (path.contains('/reqview/')) {
+            final regex = RegExp(r'/reqview/(\d+)');
+            final match = regex.firstMatch(path);
+            if (match != null) {
+              final requisitionId = int.parse(match.group(1)!);
+              print('✅ Requisition view route detected with ID: $requisitionId');
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => RequisitionViewScreen(
+                  requisitionId: requisitionId,
+                ),
+              );
+            }
+          }
+          
+          // Handle requisition edit route pattern with ID in path
           if (path.contains('/reqfrom/')) {
             final regex = RegExp(r'/reqfrom/(\d+)');
             final match = regex.firstMatch(path);
@@ -275,6 +292,19 @@ class _RouterWidgetState extends State<RouterWidget> {
     print('🌐 Current URL: ${uri.toString()}');
     print('📍 Current path: $path');
     
+    // Check for requisition view route pattern
+    if (path.contains('/reqview/')) {
+      final regex = RegExp(r'/reqview/(\d+)');
+      final match = regex.firstMatch(path);
+      if (match != null) {
+        final id = int.parse(match.group(1)!);
+        print('✅ View route detected with ID: $id');
+        _targetWidget = RequisitionViewScreen(requisitionId: id);
+        setState(() => _isLoading = false);
+        return;
+      }
+    }
+    
     // Check for edit route pattern
     if (path.contains('/reqfrom/')) {
       final regex = RegExp(r'/reqfrom/(\d+)');
@@ -287,8 +317,6 @@ class _RouterWidgetState extends State<RouterWidget> {
         return;
       }
     }
-    
-
     
     // Default to create form
     print('🏠 Default route, showing create form');
@@ -364,7 +392,6 @@ class RequisitionEditWrapper extends StatelessWidget {
           );
         }
         
-      
         // Show edit form with loaded data
         print('✅ Showing edit form with loaded data for ID: ${snapshot.data!.id}');
         return RequisitionFormScreen(requisition: snapshot.data);
@@ -372,7 +399,6 @@ class RequisitionEditWrapper extends StatelessWidget {
     );
   }
 }
-
 
 // Data loading functions
 Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisitionId) async {
@@ -411,4 +437,3 @@ Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisiti
     return null;
   }
 }
-

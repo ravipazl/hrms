@@ -1,12 +1,15 @@
 // lib/screens/requisition_form_screen.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hrms/models/requisition.dart';
 import 'dart:html' as html;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/requisition_provider.dart';
+import '../widgets/enhanced_file_upload_widget.dart';
 
 class RequisitionFormScreen extends StatefulWidget {
   final Requisition? requisition;
@@ -43,6 +46,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   String? _selectedGender;
   String _jobDescriptionType = 'text';
   File? _selectedFile;
+  PlatformFile? _selectedPlatformFile; // For web compatibility
   String? _existingFileUrl;
   
   // Position cards
@@ -86,12 +90,17 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
   void _loadExistingData() {
     if (widget.requisition == null) {
-      
+      print('❌ No requisition data to load');
       return;
     }
     
     final req = widget.requisition!;
-   
+    print('📋 Loading existing requisition data for edit mode:');
+    print('   - ID: ${req.id}');
+    print('   - Job Position: ${req.jobPosition}');
+    print('   - Job Description Type: ${req.jobDescriptionType}');
+    print('   - Job Document URL: ${req.jobDocumentUrl}');
+    print('   - Job Document: ${req.jobDocument}');
     
     setState(() {
       // Set basic fields
@@ -107,20 +116,41 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       // Set dropdown values
       _selectedDepartment = req.department;
       _selectedGender = req.preferredGender;
-      _jobDescriptionType = req.jobDescriptionType ?? 'text';
-      _existingFileUrl = req.jobDocumentUrl;
+      
+      // FIXED: Properly handle job description type and existing file
+      // Priority: jobDocumentUrl > jobDocument > text mode
+      if (req.jobDocumentUrl != null && req.jobDocumentUrl!.isNotEmpty) {
+        _jobDescriptionType = 'upload';
+        _existingFileUrl = req.jobDocumentUrl;
+        print('✅ Found existing document URL: $_existingFileUrl');
+      } else if (req.jobDocument != null && req.jobDocument!.isNotEmpty) {
+        _jobDescriptionType = 'upload';
+        _existingFileUrl = req.jobDocument;
+        print('✅ Found existing document path: $_existingFileUrl');
+      } else {
+        // Use the stored job description type, defaulting to 'text'
+        _jobDescriptionType = req.jobDescriptionType ?? 'text';
+        _existingFileUrl = null;
+        print('📝 Using text description mode');
+      }
+      
+      // ENHANCED: Debug existing file information
+      if (_existingFileUrl != null) {
+        print('🔗 Existing file URL ready for preview: $_existingFileUrl');
+        print('🎯 Job description type set to: $_jobDescriptionType');
+      }
       
       // Load position cards
       if (req.positions.isNotEmpty) {
         _positionCards = req.positions.map((pos) => RequisitionPositionCard.fromPosition(pos)).toList();
-        
+        print('✅ Loaded ${_positionCards.length} position cards');
       } else {
         _addDefaultPositionCard();
-        
+        print('➕ Added default position card');
       }
     });
     
-   
+    print('✅ Existing data loaded successfully in edit mode');
   }
 
   void _addDefaultPositionCard() {
@@ -484,85 +514,52 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   Widget _buildFileUpload() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          if (_selectedFile == null && _existingFileUrl == null) ...[
-            Icon(Icons.cloud_upload, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            const Text('Click to upload job description document'),
-            const SizedBox(height: 8),
-            Text(
-              'PDF, DOC, DOCX, JPG, PNG up to 5MB',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+    // FIXED: Add unique key to force widget rebuild when existing file URL changes
+    final widgetKey = Key('file-upload-${_existingFileUrl ?? 'new'}-${_selectedFile?.path ?? 'none'}-${_selectedPlatformFile?.name ?? 'none'}');
+    
+    return EnhancedFileUploadWidget(
+      key: widgetKey,
+      label: null, // We handle the label in the parent section
+      helpText: 'Upload job description document (PDF, DOC, DOCX, JPG, PNG up to 5MB)',
+      required: _jobDescriptionType == 'upload',
+      initialFile: _selectedFile,
+      initialFileUrl: _existingFileUrl,
+      onFileChanged: (File? file) {
+        setState(() {
+          _selectedFile = file;
+          if (file != null) {
+            _existingFileUrl = null; // Clear existing file when new file is selected
+            print('🔄 New file selected, cleared existing URL');
+          }
+        });
+      },
+      onPlatformFileChanged: (PlatformFile? platformFile) {
+        setState(() {
+          _selectedPlatformFile = platformFile;
+          if (platformFile != null) {
+            _existingFileUrl = null; // Clear existing file when new file is selected
+            print('🔄 New platform file selected, cleared existing URL');
+          }
+        });
+      },
+      onError: (String? error) {
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              backgroundColor: Colors.red,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _pickFile,
-              child: const Text('Choose File'),
-            ),
-          ] else ...[
-            _buildFilePreview(),
-          ],
-        ],
-      ),
+          );
+        }
+      },
+      allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+      maxFileSizeInMB: 5,
+      showPreview: true,
+      enabled: true,
     );
   }
 
-  Widget _buildFilePreview() {
-    final fileName = _selectedFile?.path.split('/').last ?? 
-                   _existingFileUrl?.split('/').last ?? 
-                   'Unknown file';
-    
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.insert_drive_file, color: Colors.blue[600]),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  _selectedFile != null ? 'New file' : 'Existing file',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          if (_existingFileUrl != null)
-            IconButton(
-              icon: const Icon(Icons.visibility),
-              onPressed: () => _viewFile(_existingFileUrl!),
-              tooltip: 'Preview',
-            ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => setState(() {
-              _selectedFile = null;
-              _existingFileUrl = null;
-            }),
-            tooltip: 'Remove',
-          ),
-        ],
-      ),
-    );
-  }
+  // File preview is now handled by the EnhancedFileUploadWidget
 
   Widget _buildPositionCards(RequisitionProvider provider) {
     return _buildSection(
@@ -1041,30 +1038,48 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
   Widget _buildActionButtons(RequisitionProvider provider) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        OutlinedButton(
-          onPressed: _navigateToRequisitionList,
-          child: const Text('Cancel'),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        // Left side - Preview button
+        ElevatedButton.icon(
+          onPressed: () => _showFormPreview(),
+          icon: const Icon(Icons.preview),
+          label: const Text('Preview Form'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[600],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           ),
         ),
-        const SizedBox(width: 16),
-        ElevatedButton(
-          onPressed: provider.saving ? null : () => _submitForm(provider),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-          child: provider.saving
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isEditMode ? 'Update Requisition' : 'Save Requisition'),
+        
+        // Right side - Cancel and Save buttons
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OutlinedButton(
+              onPressed: _navigateToRequisitionList,
+              child: const Text('Cancel'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton(
+              onPressed: provider.saving ? null : () => _submitForm(provider),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: provider.saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_isEditMode ? 'Update Requisition' : 'Save Requisition'),
+            ),
+          ],
         ),
       ],
     );
@@ -1104,43 +1119,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     );
   }
 
-  // Helper methods
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
-      allowMultiple: false,
-    );
-
-    if (result != null && result.files.isNotEmpty) {
-      final file = File(result.files.first.path!);
-      final fileSize = await file.length();
-      
-      if (fileSize > 5 * 1024 * 1024) { // 5MB limit
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File size must be less than 5MB'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() {
-        _selectedFile = file;
-        _existingFileUrl = null; // Clear existing file when new file is selected
-      });
-    }
-  }
-
-  void _viewFile(String url) {
-    // TODO: Implement file viewing
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening: $url')),
-    );
-  }
+  // File handling is now managed by the EnhancedFileUploadWidget
 
   Future<void> _submitForm(RequisitionProvider provider) async {
     if (!_formKey.currentState!.validate()) {
@@ -1164,7 +1143,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       return;
     }
 
-    if (_jobDescriptionType == 'upload' && _selectedFile == null && _existingFileUrl == null) {
+    if (_jobDescriptionType == 'upload' && 
+        _selectedFile == null && 
+        _selectedPlatformFile == null && 
+        _existingFileUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please upload a job description document'),
@@ -1218,15 +1200,37 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
     bool success;
     if (_isEditMode) {
+      // Determine which file to use
+      File? fileToUpload;
+      PlatformFile? platformFileToUpload;
+      
+      if (kIsWeb) {
+        platformFileToUpload = _selectedPlatformFile;
+      } else {
+        fileToUpload = _selectedFile;
+      }
+      
       success = await provider.updateRequisition(
         widget.requisition!.id!,
         requisition,
-        jobDocument: _selectedFile,
+        jobDocument: fileToUpload,
+        platformJobDocument: platformFileToUpload,
       );
     } else {
+      // Determine which file to use
+      File? fileToUpload;
+      PlatformFile? platformFileToUpload;
+      
+      if (kIsWeb) {
+        platformFileToUpload = _selectedPlatformFile;
+      } else {
+        fileToUpload = _selectedFile;
+      }
+      
       success = await provider.createRequisition(
         requisition,
-        jobDocument: _selectedFile,
+        jobDocument: fileToUpload,
+        platformJobDocument: platformFileToUpload,
       );
     }
 
@@ -1249,6 +1253,596 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
         _navigateToRequisitionList();
       });
     }
+  }
+
+  /// Show form preview dialog
+  void _showFormPreview() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            height: MediaQuery.of(context).size.height * 0.95,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Preview Header
+                _buildPreviewHeader(),
+                
+                // Preview Content (Scrollable)
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildPreviewContent(),
+                  ),
+                ),
+                
+                // Preview Footer
+                _buildPreviewFooter(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build preview header
+  Widget _buildPreviewHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.preview,
+            color: Colors.blue[600],
+            size: 32,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Requisition Form Preview',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                Text(
+                  _isEditMode ? 'Edit Mode - ID: ${widget.requisition?.id ?? 'N/A'}' : 'New Requisition',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+            tooltip: 'Close Preview',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build preview content (read-only form view)
+  Widget _buildPreviewContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header Section
+        _buildPreviewSection(
+          title: 'Company Information',
+          child: _buildPreviewCompanyHeader(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Basic Information
+        _buildPreviewSection(
+          title: 'Basic Information',
+          child: _buildPreviewBasicInfo(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Job Description
+        _buildPreviewSection(
+          title: 'Job Description',
+          child: _buildPreviewJobDescription(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Position Details
+        if (_positionCards.isNotEmpty)
+          _buildPreviewSection(
+            title: 'Position Details',
+            child: _buildPreviewPositionDetails(),
+          ),
+        
+        const SizedBox(height: 16),
+        
+        // Person Specification
+        _buildPreviewSection(
+          title: 'Person Specification',
+          child: _buildPreviewPersonSpecification(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Skills
+        _buildPreviewSection(
+          title: 'Skills Requirements',
+          child: _buildPreviewSkills(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Justification
+        if (_justificationController.text.isNotEmpty)
+          _buildPreviewSection(
+            title: 'Justification',
+            child: _buildPreviewJustification(),
+          ),
+      ],
+    );
+  }
+
+  /// Build preview section wrapper
+  Widget _buildPreviewSection({required String title, required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  /// Build company header preview
+  Widget _buildPreviewCompanyHeader() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 35,
+              child: _buildLogo(),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'SRI RAMACHANDRA MEDICAL CENTER',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'PORUR,CHENNAI-600116',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.blue,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'TALENT REQUISITION FORM - NEW POSITION/REPLACEMENT',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  /// Build basic info preview
+  Widget _buildPreviewBasicInfo() {
+    return Column(
+      children: [
+        _buildPreviewRow('Department', _getDisplayValue(_selectedDepartment, 'departments')),
+        _buildPreviewRow('Job Position', _jobPositionController.text),
+      ],
+    );
+  }
+
+  /// Build job description preview
+  Widget _buildPreviewJobDescription() {
+    if (_jobDescriptionType == 'text') {
+      return _buildPreviewRow('Job Description', _jobDescriptionController.text, isMultiline: true);
+    } else {
+      String fileInfo = 'No document uploaded';
+      if (_selectedFile != null) {
+        fileInfo = 'File: ${_selectedFile!.path.split('/').last}';
+      } else if (_selectedPlatformFile != null) {
+        fileInfo = 'File: ${_selectedPlatformFile!.name} (${_formatFileSize(_selectedPlatformFile!.size)})';
+      } else if (_existingFileUrl != null) {
+        fileInfo = 'Existing file: ${_existingFileUrl!.split('/').last}';
+      }
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPreviewRow('Job Description Type', 'Document Upload'),
+          _buildPreviewRow('Document', fileInfo),
+          if (_existingFileUrl != null || _selectedPlatformFile != null || _selectedFile != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  if (_existingFileUrl != null) {
+                    // Show preview for existing file
+                    _previewExistingFile();
+                  } else {
+                    // Show preview for new file
+                    _previewNewFile();
+                  }
+                },
+                icon: const Icon(Icons.visibility, size: 16),
+                label: const Text('Preview Document'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+  }
+
+  /// Build position details preview
+  Widget _buildPreviewPositionDetails() {
+    return Column(
+      children: _positionCards.asMap().entries.map((entry) {
+        final index = entry.key;
+        final card = entry.value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Position Card #${index + 1}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPreviewRow('Type of Requisition', _getDisplayValue(card.typeRequisition, 'requisitionTypes')),
+              _buildPreviewRow('Reason', _getDisplayValue(card.requirementsReason, card.typeRequisition == '1' ? 'newHireReasons' : 'replacementReasons')),
+              _buildPreviewRow('Head Count', card.headcount),
+              _buildPreviewRow('Vacancy Date', card.vacancyToBeFilled ?? 'Not set'),
+              _buildPreviewRow('Employment Type', _getDisplayValue(card.employmentType, 'employmentTypes')),
+              if (card.typeRequisition == '2') ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Employee Information:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                _buildPreviewRow('Employee No', card.employeeNo ?? ''),
+                _buildPreviewRow('Employee Name', card.employeeName ?? ''),
+                _buildPreviewRow('Date of Resignation', card.dateOfResignation ?? ''),
+                _buildPreviewRow('Resignation Reason', card.resignationReason ?? ''),
+              ],
+              if (card.justificationText?.isNotEmpty == true)
+                _buildPreviewRow('Justification', card.justificationText!, isMultiline: true),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Build person specification preview
+  Widget _buildPreviewPersonSpecification() {
+    return Column(
+      children: [
+        _buildPreviewRow('Preferred Gender', _getDisplayValue(_selectedGender, 'genders')),
+        _buildPreviewRow('Preferred Age Group', _preferredAgeController.text),
+        _buildPreviewRow('Qualification', _qualificationController.text),
+        _buildPreviewRow('Experience Required', _experienceController.text),
+      ],
+    );
+  }
+
+  /// Build skills preview
+  Widget _buildPreviewSkills() {
+    return Column(
+      children: [
+        _buildPreviewRow('Essential Skills', _essentialSkillsController.text, isMultiline: true),
+        _buildPreviewRow('Desirable Skills', _desiredSkillsController.text, isMultiline: true),
+      ],
+    );
+  }
+
+  /// Build justification preview
+  Widget _buildPreviewJustification() {
+    return _buildPreviewRow('Justification Text', _justificationController.text, isMultiline: true);
+  }
+
+  /// Build preview row
+  Widget _buildPreviewRow(String label, String value, {bool isMultiline = false}) {
+    if (value.isEmpty) {
+      value = 'Not specified';
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: value == 'Not specified' ? Colors.grey : Colors.black,
+                fontStyle: value == 'Not specified' ? FontStyle.italic : FontStyle.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Get display value for dropdowns
+  String _getDisplayValue(String? value, String type) {
+    if (value == null || value.isEmpty) return 'Not selected';
+    
+    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+    
+    switch (type) {
+      case 'departments':
+        final item = provider.departments.firstWhere((dept) => dept.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'genders':
+        final item = provider.genders.firstWhere((gender) => gender.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'requisitionTypes':
+        final item = provider.requisitionTypes.firstWhere((type) => type.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'newHireReasons':
+        final item = provider.newHireReasons.firstWhere((reason) => reason.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'replacementReasons':
+        final item = provider.replacementReasons.firstWhere((reason) => reason.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'employmentTypes':
+        final item = provider.employmentTypes.firstWhere((type) => type.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      default:
+        return value;
+    }
+  }
+
+  /// Preview existing file from form preview - Direct opening
+  void _previewExistingFile() {
+    if (_existingFileUrl != null) {
+      print('🔗 Opening existing file directly: $_existingFileUrl');
+      
+      if (kIsWeb) {
+        // Determine file extension for optimized viewing
+        final fileName = _existingFileUrl!.split('/').last;
+        final extension = _getFileExtension(fileName).toLowerCase();
+        
+        String viewUrl = _existingFileUrl!;
+        if (extension == 'pdf') {
+          viewUrl = '$_existingFileUrl#view=FitH';
+        } else if (['doc', 'docx'].contains(extension)) {
+          if (_existingFileUrl!.contains('127.0.0.1') || _existingFileUrl!.contains('localhost')) {
+            viewUrl = _existingFileUrl!.contains('?') ? '$_existingFileUrl&disposition=inline' : '$_existingFileUrl?disposition=inline';
+          }
+        }
+        
+        html.window.open(viewUrl, '_blank');
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Opening ${fileName} in new tab...'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+      } else {
+        launchUrl(Uri.parse(_existingFileUrl!), mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  /// Preview new file from form preview - Direct opening
+  void _previewNewFile() {
+    if (kIsWeb && _selectedPlatformFile != null) {
+      // Create blob URL and open directly
+      final extension = _getFileExtension(_selectedPlatformFile!.name).toLowerCase();
+      final fileName = _selectedPlatformFile!.name;
+      
+      try {
+        if (['pdf', 'jpg', 'jpeg', 'png'].contains(extension)) {
+          final mimeType = extension == 'pdf' ? 'application/pdf' : 'image/${extension == 'jpg' ? 'jpeg' : extension}';
+          final blob = html.Blob([_selectedPlatformFile!.bytes!], mimeType);
+          final url = html.Url.createObjectUrlFromBlob(blob);
+          
+          // Add PDF viewer parameters if needed
+          final viewUrl = extension == 'pdf' ? '$url#view=FitH' : url;
+          
+          html.window.open(viewUrl, '_blank');
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Opening $fileName in new tab...'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.green[600],
+            ),
+          );
+          
+          Future.delayed(const Duration(seconds: 60), () => html.Url.revokeObjectUrl(url));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error previewing file: $e'),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+      }
+    }
+  }
+
+  /// Helper method to get file extension
+  String _getFileExtension(String fileName) {
+    final lastDot = fileName.lastIndexOf('.');
+    if (lastDot != -1 && lastDot < fileName.length - 1) {
+      return fileName.substring(lastDot + 1);
+    }
+    return '';
+  }
+
+  /// Helper method to format file size
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB"];
+    var i = 0;
+    double size = bytes.toDouble();
+    while (size >= 1024 && i < suffixes.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return "${size.toStringAsFixed(size < 10 ? 1 : 0)} ${suffixes[i]}";
+  }
+
+  /// Build preview footer
+  Widget _buildPreviewFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Preview Mode - Form data is read-only',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Could add print functionality here
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Print functionality can be added here'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.print, size: 16),
+                label: const Text('Print'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override

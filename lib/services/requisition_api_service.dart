@@ -2,8 +2,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:hrms/models/requisition.dart';
-import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'api_config.dart';
 
 class RequisitionApiService {
@@ -217,14 +217,21 @@ class RequisitionApiService {
   }
 
   /// Create new requisition
-  Future<Requisition> createRequisition(Requisition requisition, {File? jobDocument}) async {
+  Future<Requisition> createRequisition(
+    Requisition requisition, {
+    File? jobDocument,
+    PlatformFile? platformJobDocument,
+  }) async {
     try {
       print('📝 Creating requisition...');
       
       final mappedData = _mapFormDataToBackend(requisition);
       print('📤 Mapped data structure: $mappedData');
 
-      if (jobDocument != null) {
+      // Check if we have any file to upload (either File or PlatformFile)
+      final hasFile = jobDocument != null || platformJobDocument != null;
+      
+      if (hasFile) {
         // File upload with FormData
         print('📎 File upload detected, using FormData');
         
@@ -242,10 +249,26 @@ class RequisitionApiService {
         });
         
         // Add file
-        formData.files.add(MapEntry(
-          'job_document',
-          await MultipartFile.fromFile(jobDocument.path),
-        ));
+        if (jobDocument != null) {
+          // Handle File object (mobile/desktop)
+          final fileName = jobDocument.path.split('/').last;
+          formData.files.add(MapEntry(
+            'job_document',
+            await MultipartFile.fromFile(
+              jobDocument.path,
+              filename: fileName,
+            ),
+          ));
+        } else if (platformJobDocument != null) {
+          // Handle PlatformFile (web)
+          formData.files.add(MapEntry(
+            'job_document',
+            MultipartFile.fromBytes(
+              platformJobDocument.bytes!,
+              filename: platformJobDocument.name,
+            ),
+          ));
+        }
         
         final response = await _dio.post(
           '/requisition/',
@@ -281,14 +304,22 @@ class RequisitionApiService {
   }
 
   /// Update requisition
-  Future<Requisition> updateRequisition(int id, Requisition requisition, {File? jobDocument}) async {
+  Future<Requisition> updateRequisition(
+    int id, 
+    Requisition requisition, {
+    File? jobDocument,
+    PlatformFile? platformJobDocument,
+  }) async {
     try {
       print('📝 Updating requisition $id');
       
       final mappedData = _mapFormDataToBackend(requisition);
       print('📤 Mapped data for update: $mappedData');
 
-      if (jobDocument != null) {
+      // Check if we have any file to upload (either File or PlatformFile)
+      final hasFile = jobDocument != null || platformJobDocument != null;
+      
+      if (hasFile) {
         // File upload with FormData
         print('📎 File upload detected for update, using FormData');
         
@@ -306,10 +337,26 @@ class RequisitionApiService {
         });
         
         // Add file
-        formData.files.add(MapEntry(
-          'jobDocument',
-          await MultipartFile.fromFile(jobDocument.path),
-        ));
+        if (jobDocument != null) {
+          // Handle File object (mobile/desktop)
+          final fileName = jobDocument.path.split('/').last;
+          formData.files.add(MapEntry(
+            'job_document',
+            await MultipartFile.fromFile(
+              jobDocument.path,
+              filename: fileName,
+            ),
+          ));
+        } else if (platformJobDocument != null) {
+          // Handle PlatformFile (web)
+          formData.files.add(MapEntry(
+            'job_document',
+            MultipartFile.fromBytes(
+              platformJobDocument.bytes!,
+              filename: platformJobDocument.name,
+            ),
+          ));
+        }
         
         final response = await _dio.put(
           '/requisition/$id/',

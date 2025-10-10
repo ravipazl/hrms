@@ -90,9 +90,39 @@ class Requisition {
     return desiredSkills.isNotEmpty ? desiredSkills.join(', ') : null;
   }
 
+  /// Helper method to construct complete URLs from relative paths
+  static String? _constructCompleteUrlIfNeeded(String? urlOrPath) {
+    if (urlOrPath == null || urlOrPath.isEmpty) {
+      return null;
+    }
+    
+    if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+      // Already a complete URL
+      return urlOrPath;
+    }
+    
+    // Construct complete URL using Django base URL
+    const String baseUrl = 'http://127.0.0.1:8000';
+    
+    // Ensure the path starts with /
+    String path = urlOrPath.startsWith('/') ? urlOrPath : '/$urlOrPath';
+    
+    final completeUrl = '$baseUrl$path';
+    print('🔗 Constructed complete URL: $completeUrl (from: $urlOrPath)');
+    return completeUrl;
+  }
+
   factory Requisition.fromJson(Map<String, dynamic> json) {
     print('📝 Parsing requisition from Django API response...');
     print('📝 Available keys: ${json.keys.toList()}');
+    
+    // ENHANCED: Debug document-related fields
+    print('📎 Document-related fields in API response:');
+    print('   - job_document: ${json['job_document']}');
+    print('   - job_document_url: ${json['job_document_url']}');
+    print('   - job_description_type: ${json['job_description_type']}');
+    print('   - job_description: ${json['job_description'] != null ? '(has text)' : '(null)'}');
+    print('   - jobDescription: ${json['jobDescription'] != null ? '(has text)' : '(null)'}');
     
     // Extract skills data if available
     final skillsData = json['skills'] as List? ?? [];
@@ -106,17 +136,18 @@ class Requisition {
     final positionsData = json['positions'] as List? ?? [];
     print('📝 Positions data length: ${positionsData.length}');
     
-    return Requisition(
+    final requisition = Requisition(
       id: json['id'],
       requisitionId: json['requisition_id'],
       // Handle both frontend and backend field names
       jobPosition: json['jobPosition'] ?? json['job_position'] ?? '',
       department: json['department']?.toString() ?? '',
       departmentName: json['department_display'] ?? json['department_name'],
-      // Handle both frontend and backend field names
+      // Handle both frontend and backend field names for job description
       jobDescription: json['jobDescription'] ?? json['job_description'],
-      jobDocument: json['job_document'],
-      jobDocumentUrl: json['job_document_url'],
+      // FIXED: Handle document fields with complete URL construction
+      jobDocument: _constructCompleteUrlIfNeeded(json['job_document']?.toString()),
+      jobDocumentUrl: _constructCompleteUrlIfNeeded(json['job_document_url']?.toString()),
       jobDescriptionType: json['job_description_type'] ?? 'text',
       preferredGender: json['preferred_gender']?.toString(),
       // Handle both frontend and backend field names
@@ -146,6 +177,14 @@ class Requisition {
               ? DateTime.parse(json['updated_at'])
               : null,
     );
+    
+    // ENHANCED: Debug the final parsed document fields
+    print('✅ Requisition parsed with document fields:');
+    print('   - jobDocument: ${requisition.jobDocument}');
+    print('   - jobDocumentUrl: ${requisition.jobDocumentUrl}');
+    print('   - jobDescriptionType: ${requisition.jobDescriptionType}');
+    
+    return requisition;
   }
 
   Map<String, dynamic> toJson() {

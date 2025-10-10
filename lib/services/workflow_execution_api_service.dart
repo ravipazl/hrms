@@ -7,15 +7,18 @@ import '../models/workflow_execution/workflow_execution.dart';
 import '../models/workflow_template.dart';
 
 class WorkflowExecutionApiService {
+  // FIXED: Match React implementation - use /api/v1 instead of /api
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   /// Get workflow execution status for a requisition
+  /// FIXED: Match React implementation endpoint path
   Future<Map<String, dynamic>> getWorkflowExecutionStatus(int requisitionId) async {
     try {
       print('🔍 Loading workflow execution status for requisition: $requisitionId');
       
+      // FIXED: Match React endpoint - /workflow/requisition/{id}/execution-status/
       final response = await http.get(
-        Uri.parse('$baseUrl/workflow/execution-status/$requisitionId/'),
+        Uri.parse('$baseUrl/workflow/requisition/$requisitionId/execution-status/'),
       );
 
       if (response.statusCode == 200) {
@@ -63,28 +66,48 @@ class WorkflowExecutionApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
+        print('📝 Raw API Response type: ${data.runtimeType}');
+        if (data is Map) {
+          print('📝 Response keys: ${data.keys.toList()}');
+        }
+        
         List<dynamic> templatesList;
         if (data is List) {
           templatesList = data;
+          print('📝 Templates is a direct List with ${data.length} items');
         } else if (data['results'] != null) {
           templatesList = data['results'];
+          print('📝 Templates in results field with ${data['results'].length} items');
         } else if (data['data'] != null) {
           templatesList = data['data'];
+          print('📝 Templates in data field with ${data['data'].length} items');
         } else {
           throw Exception('Invalid templates data format');
         }
 
-        final templates = templatesList
-            .map((template) => WorkflowTemplate.fromJson(template))
-            .toList();
+        // Parse each template with detailed error logging
+        final templates = <WorkflowTemplate>[];
+        for (int i = 0; i < templatesList.length; i++) {
+          try {
+            print('📝 Parsing template $i: ${templatesList[i]['name']}');
+            final template = WorkflowTemplate.fromJson(templatesList[i]);
+            templates.add(template);
+            print('   ✅ Successfully parsed template: ${template.name}');
+          } catch (templateError) {
+            print('❌ Error parsing template $i: $templateError');
+            print('📝 Template data: ${templatesList[i]}');
+            // Continue parsing other templates instead of throwing
+          }
+        }
             
-        print('✅ Loaded ${templates.length} workflow templates');
+        print('✅ Loaded ${templates.length} workflow templates successfully');
         return templates;
       } else {
         throw Exception('Failed to load templates: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error loading workflow templates: $e');
+      print('📝 Stack trace: ${StackTrace.current}');
       return [];
     }
   }

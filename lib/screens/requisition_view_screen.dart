@@ -70,6 +70,14 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         _loading = false;
       });
 
+      // DEBUG: Check workflow setup after requisition is loaded
+      print('🔍 DEBUG - After requisition loaded:');
+      print('   - Requisition ID: ${requisition.id}');
+      print('   - Status: ${requisition.status}');
+      print('   - Selected Status: $_selectedStatus');
+      print('   - Workflow execution loaded: ${_workflowExecution != null}');
+      print('   - Can setup workflow: ${_canSetupWorkflow()}');
+
       if (_requisition?.department != null) {
         print('🔄 Department loaded, fetching workflow templates for department ID: ${_requisition!.department}');
         _loadWorkflowTemplates();
@@ -84,19 +92,44 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
 
   Future<void> _loadWorkflowExecutionStatus() async {
     try {
-      print('🔍 Loading workflow execution status');
+      print('🔍 Loading workflow execution status for requisition: ${widget.requisitionId}');
+      print('🔍 Calling API endpoint...');
       
       final result = await _workflowApi.getWorkflowExecutionStatus(widget.requisitionId);
       
+      print('✅ API Response received:');
+      print('   - Status: ${result['status']}');
+      print('   - Has data: ${result['data'] != null}');
+      
       if (result['status'] == 'success') {
+        final workflowExecution = result['data'] as WorkflowExecution;
+        print('✅ Workflow execution data parsed:');
+        print('   - Workflow Configured: ${workflowExecution.workflowConfigured}');
+        print('   - Workflow Status: ${workflowExecution.workflowStatus}');
+        
         setState(() {
-          _workflowExecution = result['data'] as WorkflowExecution;
+          _workflowExecution = workflowExecution;
         });
       } else {
+        print('⚠️ No workflow found, setting default');
         setState(() {
           _workflowExecution = WorkflowExecution(workflowConfigured: false);
         });
       }
+      
+      // DEBUG: Check _canSetupWorkflow() after loading
+      print('🔍 DEBUG - Can setup workflow check:');
+      print('   - Status: ${_requisition?.status}');
+      print('   - Is Approved: ${_requisition?.status == "Approved"}');
+      print('   - Workflow execution exists: ${_workflowExecution != null}');
+      print('   - Workflow configured: ${_workflowExecution?.workflowConfigured}');
+      print('   - Can setup workflow: ${_canSetupWorkflow()}');
+      
+      // CRITICAL: Force UI rebuild after workflow status is loaded
+      if (mounted) {
+        setState(() {}); // Trigger rebuild to update workflow section
+      }
+      
     } catch (e) {
       print('⚠️ Error loading workflow execution: $e');
       setState(() {
@@ -146,7 +179,8 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
   }
 
   bool _canSetupWorkflow() {
-    final isApproved = _requisition?.status?.toLowerCase() == 'approved';
+    // FIXED: Compare with capitalized 'Approved' to match API response
+    final isApproved = _requisition?.status == 'Approved';
     final workflowNotConfigured = _workflowExecution != null && 
                                    !_workflowExecution!.workflowConfigured;
     

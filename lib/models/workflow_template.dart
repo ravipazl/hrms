@@ -35,14 +35,15 @@ class WorkflowTemplate {
   factory WorkflowTemplate.fromJson(Map<String, dynamic> json) {
     return WorkflowTemplate(
       id: json['id'],
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      stage: json['stage'] ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      // FIXED: Handle both int and String for stage field
+      stage: json['stage']?.toString() ?? '',
       selectedStage: json['selectedStage'] != null
           ? WorkflowStage.fromJson(json['selectedStage'])
           : null,
-      department: json['department'],
-      isGlobalDefault: json['isGlobalDefault'] ?? false,
+      department: json['department'] is int ? json['department'] : (json['department'] != null ? int.tryParse(json['department'].toString()) : null),
+      isGlobalDefault: json['isGlobalDefault'] ?? json['is_global_default'] ?? false,
       nodes: (json['nodes'] as List?)
               ?.map((node) => WorkflowNode.fromJson(node))
               .toList() ??
@@ -52,11 +53,11 @@ class WorkflowTemplate {
               .toList() ??
           [],
       templateMetadata: json['template_metadata'],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+      createdAt: json['createdAt'] != null || json['created_at'] != null
+          ? DateTime.parse(json['createdAt'] ?? json['created_at'])
           : null,
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'])
+      updatedAt: json['updatedAt'] != null || json['updated_at'] != null
+          ? DateTime.parse(json['updatedAt'] ?? json['updated_at'])
           : null,
     );
   }
@@ -124,8 +125,8 @@ class WorkflowStage {
   factory WorkflowStage.fromJson(Map<String, dynamic> json) {
     return WorkflowStage(
       id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
     );
   }
 

@@ -1214,7 +1214,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
         widget.requisition!.id!,
         requisition,
         jobDocument: fileToUpload,
-        platformJobDocument: platformFileToUpload,
+
       );
     } else {
       // Determine which file to use
@@ -1230,7 +1230,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       success = await provider.createRequisition(
         requisition,
         jobDocument: fileToUpload,
-        platformJobDocument: platformFileToUpload,
+
       );
     }
 

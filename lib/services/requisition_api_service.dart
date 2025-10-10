@@ -2,58 +2,28 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:hrms/models/requisition.dart';
-import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'api_config.dart';
 
 class RequisitionApiService {
-  late final Dio _dio;
-
-  RequisitionApiService() {
-    _dio = Dio(BaseOptions(
-      baseUrl: ApiConfig.baseUrl,
-      connectTimeout: ApiConfig.connectTimeout,
-      receiveTimeout: ApiConfig.receiveTimeout,
-      sendTimeout: ApiConfig.sendTimeout,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    ));
-
-    // Request interceptor for logging
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        print('🚀 ${options.method.toUpperCase()} ${options.path}');
-        if (options.data != null) {
-          print('📤 Request payload: ${options.data}');
-        }
-        handler.next(options);
-      },
-      onResponse: (response, handler) {
-        print('✅ ${response.requestOptions.method.toUpperCase()} ${response.requestOptions.path} - ${response.statusCode}');
-        handler.next(response);
-      },
-      onError: (error, handler) {
-        print('❌ API Error: ${error.message}');
-        if (error.response?.data != null) {
-          print('🔍 Error response: ${error.response?.data}');
-        }
-        handler.next(error);
-      },
-    ));
-  }
-
   /// Test API connection
   Future<Map<String, dynamic>> testConnection() async {
     try {
       print('🧪 Testing API connection...');
-      final response = await _dio.get(ApiConfig.referenceDataEndpoint);
-      print('✅ API connection successful: ${response.statusCode}');
-      return {
-        'success': true,
-        'status': response.statusCode,
-        'data': response.data
-      };
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.referenceDataEndpoint}'),
+      );
+      
+      if (response.statusCode == 200) {
+        print('✅ API connection successful: ${response.statusCode}');
+        return {
+          'success': true,
+          'status': response.statusCode,
+          'data': json.decode(response.body)
+        };
+      } else {
+        throw Exception('API connection failed: ${response.statusCode}');
+      }
     } catch (error) {
       print('❌ API connection failed: $error');
       print('🛠️ API unavailable, using fallback data for development');
@@ -75,38 +45,45 @@ class RequisitionApiService {
     try {
       print('📋 Fetching requisitions with filters');
       
-      final queryParams = <String, dynamic>{};
-      if (search?.isNotEmpty == true) queryParams['search'] = search;
-      if (department?.isNotEmpty == true) queryParams['department'] = department;
-      if (status?.isNotEmpty == true) queryParams['status'] = status;
-      queryParams['page'] = page;
-      queryParams['page_size'] = pageSize;
+      final queryParams = <String, String>{};
+      if (search?.isNotEmpty == true) queryParams['search'] = search!;
+      if (department?.isNotEmpty == true) queryParams['department'] = department!;
+      if (status?.isNotEmpty == true) queryParams['status'] = status!;
+      queryParams['page'] = page.toString();
+      queryParams['page_size'] = pageSize.toString();
 
-      final response = await _dio.get(ApiConfig.requisitionEndpoint, queryParameters: queryParams);
+      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}')
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(uri);
       
-      final data = response.data;
-      List<Requisition> requisitions = [];
-      int total = 0;
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<Requisition> requisitions = [];
+        int total = 0;
 
-      if (data['results'] != null && data['results'] is List) {
-        // Paginated response
-        requisitions = (data['results'] as List)
-            .map((req) => Requisition.fromJson(req))
-            .toList();
-        total = data['count'] ?? 0;
-      } else if (data is List) {
-        // Non-paginated response
-        requisitions = data.map((req) => Requisition.fromJson(req)).toList();
-        total = requisitions.length;
+        if (data['results'] != null && data['results'] is List) {
+          // Paginated response
+          requisitions = (data['results'] as List)
+              .map((req) => Requisition.fromJson(req))
+              .toList();
+          total = data['count'] ?? 0;
+        } else if (data is List) {
+          // Non-paginated response
+          requisitions = data.map((req) => Requisition.fromJson(req as Map<String, dynamic>)).toList();
+          total = requisitions.length;
+        }
+
+        print('✅ Requisitions fetched: ${requisitions.length} of $total');
+        
+        return {
+          'results': requisitions,
+          'count': total,
+          'success': true,
+        };
+      } else {
+        throw Exception('Failed to fetch requisitions: ${response.statusCode}');
       }
-
-      print('✅ Requisitions fetched: ${requisitions.length} of $total');
-      
-      return {
-        'results': requisitions,
-        'count': total,
-        'success': true,
-      };
     } catch (error) {
       print('❌ Error fetching requisitions: $error');
       
@@ -128,31 +105,33 @@ class RequisitionApiService {
       print('📡 API URL: ${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}$id/');
       
       // Use the detail endpoint which returns complete requisition data
-      final response = await _dio.get('${ApiConfig.requisitionEndpoint}$id/');
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}$id/'),
+      );
       
       print('✅ API Response received:');
       print('   - Status Code: ${response.statusCode}');
-      print('   - Response data type: ${response.data.runtimeType}');
-      print('   - Contains positions: ${response.data['positions'] != null}');
-      print('   - Contains skills: ${response.data['skills'] != null}');
       
-      if (response.data == null) {
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch requisition: ${response.statusCode}');
+      }
+      
+      if (response.body.isEmpty) {
         throw Exception('Empty response from API');
       }
       
+      final data = json.decode(response.body);
+      
       // Log raw response data for debugging
       print('📥 Raw API Response:');
-      if (response.data is Map) {
-        final data = response.data as Map<String, dynamic>;
-        print('   - ID: ${data['id']}');
-        print('   - Job Position: ${data['job_position'] ?? data['jobPosition']}');
-        print('   - Department: ${data['department']}');
-        print('   - Qualification: ${data['qualification']}');
-        print('   - Positions: ${data['positions']?.length ?? 0}');
-      }
+      print('   - ID: ${data['id']}');
+      print('   - Job Position: ${data['job_position'] ?? data['jobPosition']}');
+      print('   - Department: ${data['department']}');
+      print('   - Qualification: ${data['qualification']}');
+      print('   - Positions: ${data['positions']?.length ?? 0}');
       
       // Parse the detailed response into Requisition model
-      final requisition = Requisition.fromJson(response.data);
+      final requisition = Requisition.fromJson(data);
       
       print('✅ Requisition parsed successfully:');
       print('   - ID: ${requisition.id}');
@@ -166,14 +145,6 @@ class RequisitionApiService {
       return requisition;
     } catch (error) {
       print('❌ Error fetching detailed requisition $id: $error');
-      
-      if (error is DioException) {
-        print('📡 DioException details:');
-        print('   - Status Code: ${error.response?.statusCode}');
-        print('   - Response Data: ${error.response?.data}');
-        print('   - Error Type: ${error.type}');
-        print('   - Error Message: ${error.message}');
-      }
       
       // For development, provide a basic requisition object
       print('🛠️ Creating fallback requisition for development');
@@ -217,84 +188,74 @@ class RequisitionApiService {
   }
 
   /// Create new requisition
-  Future<Requisition> createRequisition(
-    Requisition requisition, {
-    File? jobDocument,
-    PlatformFile? platformJobDocument,
-  }) async {
+  Future<Requisition> createRequisition(Requisition requisition, {File? jobDocument}) async {
     try {
       print('📝 Creating requisition...');
       
       final mappedData = _mapFormDataToBackend(requisition);
       print('📤 Mapped data structure: $mappedData');
 
-      // Check if we have any file to upload (either File or PlatformFile)
-      final hasFile = jobDocument != null || platformJobDocument != null;
-      
-      if (hasFile) {
-        // File upload with FormData
-        print('📎 File upload detected, using FormData');
+      if (jobDocument != null) {
+        // File upload with MultipartRequest
+        print('📎 File upload detected, using MultipartRequest');
         
-        final formData = FormData();
+        final uri = Uri.parse('${ApiConfig.baseUrl}/requisition/');
+        final request = http.MultipartRequest('POST', uri);
         
-        // Add all fields
+        // Add headers
+        request.headers['Content-Type'] = 'multipart/form-data';
+        
+        // Add fields
         mappedData.forEach((key, value) {
           if (key != 'job_document' && value != null) {
             if (value is List || value is Map) {
-              formData.fields.add(MapEntry(key, jsonEncode(value)));
+              request.fields[key] = jsonEncode(value);
             } else {
-              formData.fields.add(MapEntry(key, value.toString()));
+              request.fields[key] = value.toString();
             }
           }
         });
         
         // Add file
-        if (jobDocument != null) {
-          // Handle File object (mobile/desktop)
-          final fileName = jobDocument.path.split('/').last;
-          formData.files.add(MapEntry(
-            'job_document',
-            await MultipartFile.fromFile(
-              jobDocument.path,
-              filename: fileName,
-            ),
-          ));
-        } else if (platformJobDocument != null) {
-          // Handle PlatformFile (web)
-          formData.files.add(MapEntry(
-            'job_document',
-            MultipartFile.fromBytes(
-              platformJobDocument.bytes!,
-              filename: platformJobDocument.name,
-            ),
-          ));
+        request.files.add(await http.MultipartFile.fromPath(
+          'job_document',
+          jobDocument.path,
+        ));
+        
+        final streamedResponse = await request.send();
+        final response = await http.Response.fromStream(streamedResponse);
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          print('✅ Requisition created with file upload');
+          return Requisition.fromJson(json.decode(response.body));
+        } else {
+          throw Exception('Failed to create requisition: ${response.statusCode}');
         }
-        
-        final response = await _dio.post(
-          '/requisition/',
-          data: formData,
-          options: Options(
-            headers: {'Content-Type': 'multipart/form-data'},
-          ),
-        );
-        
-        print('✅ Requisition created with file upload');
-        return Requisition.fromJson(response.data);
       } else {
         // Regular JSON request
         print('🚀 Sending JSON data to API');
         
-        final response = await _dio.post('/requisition/', data: mappedData);
-        print('✅ Requisition created successfully');
-        print('📥 Response data type: ${response.data.runtimeType}');
-        print('📥 Response data: ${response.data}');
+        final response = await http.post(
+          Uri.parse('${ApiConfig.baseUrl}/requisition/'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(mappedData),
+        );
         
-        try {
-          return Requisition.fromJson(response.data);
-        } catch (parseError) {
-          print('❌ Error parsing response: $parseError');
-          print('📥 Raw response: ${response.data}');
-          rethrow;
+        print('📡 Response status: ${response.statusCode}');
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          print('✅ Requisition created successfully');
+          print('📥 Response data: ${response.body}');
+          
+          try {
+            return Requisition.fromJson(json.decode(response.body));
+          } catch (parseError) {
+            print('❌ Error parsing response: $parseError');
+            print('📥 Raw response: ${response.body}');
+            rethrow;
+          }
+        } else {
+          throw Exception('Failed to create requisition: ${response.statusCode}');
         }
       }
     } catch (error) {
@@ -304,85 +265,74 @@ class RequisitionApiService {
   }
 
   /// Update requisition
-  Future<Requisition> updateRequisition(
-    int id, 
-    Requisition requisition, {
-    File? jobDocument,
-    PlatformFile? platformJobDocument,
-  }) async {
+  Future<Requisition> updateRequisition(int id, Requisition requisition, {File? jobDocument}) async {
     try {
       print('📝 Updating requisition $id');
       
       final mappedData = _mapFormDataToBackend(requisition);
       print('📤 Mapped data for update: $mappedData');
 
-      // Check if we have any file to upload (either File or PlatformFile)
-      final hasFile = jobDocument != null || platformJobDocument != null;
-      
-      if (hasFile) {
-        // File upload with FormData
-        print('📎 File upload detected for update, using FormData');
+      if (jobDocument != null) {
+        // File upload with MultipartRequest
+        print('📎 File upload detected for update, using MultipartRequest');
         
-        final formData = FormData();
+        final uri = Uri.parse('${ApiConfig.baseUrl}/requisition/$id/');
+        final request = http.MultipartRequest('PUT', uri);
         
-        // Add all fields
+        // Add headers
+        request.headers['Content-Type'] = 'multipart/form-data';
+        
+        // Add fields
         mappedData.forEach((key, value) {
           if (key != 'job_document' && value != null) {
             if (value is List || value is Map) {
-              formData.fields.add(MapEntry(key, jsonEncode(value)));
+              request.fields[key] = jsonEncode(value);
             } else {
-              formData.fields.add(MapEntry(key, value.toString()));
+              request.fields[key] = value.toString();
             }
           }
         });
         
         // Add file
-        if (jobDocument != null) {
-          // Handle File object (mobile/desktop)
-          final fileName = jobDocument.path.split('/').last;
-          formData.files.add(MapEntry(
-            'job_document',
-            await MultipartFile.fromFile(
-              jobDocument.path,
-              filename: fileName,
-            ),
-          ));
-        } else if (platformJobDocument != null) {
-          // Handle PlatformFile (web)
-          formData.files.add(MapEntry(
-            'job_document',
-            MultipartFile.fromBytes(
-              platformJobDocument.bytes!,
-              filename: platformJobDocument.name,
-            ),
-          ));
+        request.files.add(await http.MultipartFile.fromPath(
+          'jobDocument',
+          jobDocument.path,
+        ));
+        
+        final streamedResponse = await request.send();
+        final response = await http.Response.fromStream(streamedResponse);
+        
+        if (response.statusCode == 200) {
+          print('✅ Requisition updated with file');
+          return Requisition.fromJson(json.decode(response.body));
+        } else {
+          throw Exception('Failed to update requisition: ${response.statusCode}');
         }
-        
-        final response = await _dio.put(
-          '/requisition/$id/',
-          data: formData,
-          options: Options(
-            headers: {'Content-Type': 'multipart/form-data'},
-          ),
-        );
-        
-        print('✅ Requisition updated with file');
-        return Requisition.fromJson(response.data);
       } else {
         // Regular JSON request
         print('🚀 Sending JSON update data to API');
         
-        final response = await _dio.put('/requisition/$id/', data: mappedData);
-        print('✅ Requisition updated successfully');
-        print('📥 Response data type: ${response.data.runtimeType}');
-        print('📥 Response data: ${response.data}');
+        final response = await http.put(
+          Uri.parse('${ApiConfig.baseUrl}/requisition/$id/'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(mappedData),
+        );
         
-        try {
-          return Requisition.fromJson(response.data);
-        } catch (parseError) {
-          print('❌ Error parsing response: $parseError');
-          print('📥 Raw response: ${response.data}');
-          rethrow;
+        print('📡 Response status: ${response.statusCode}');
+        
+        if (response.statusCode == 200) {
+          print('✅ Requisition updated successfully');
+          print('📥 Response data: ${response.body}');
+          
+          try {
+            return Requisition.fromJson(json.decode(response.body));
+          } catch (parseError) {
+            print('❌ Error parsing response: $parseError');
+            print('📥 Raw response: ${response.body}');
+            rethrow;
+          }
+        } else {
+          throw Exception('Failed to update requisition: ${response.statusCode}');
         }
       }
     } catch (error) {
@@ -395,25 +345,43 @@ class RequisitionApiService {
   Future<void> deleteRequisition(int id) async {
     try {
       print('🗑️ Deleting requisition $id');
-      await _dio.delete('/requisition/$id/');
-      print('✅ Requisition deleted successfully');
+      
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/requisition/$id/'),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ Requisition deleted successfully');
+      } else {
+        throw Exception('Failed to delete requisition: ${response.statusCode}');
+      }
     } catch (error) {
       print('❌ Error deleting requisition $id: $error');
       throw _handleApiError(error);
     }
   }
 
-  /// Update requisition status
+  /// Update requisition status - EXACTLY like workflow_api_service.dart
   Future<Map<String, dynamic>> updateRequisitionStatus(int id, String status) async {
     try {
       print('🔄 Updating requisition $id status to: $status');
       
-      final response = await _dio.patch('/requisition/$id/status/', data: {
-        'status': status,
-      });
+      // ✅ EXACTLY like workflow_api_service.dart - plain http with only Content-Type
+      final response = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}/requisition/$id/status/'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'status': status}),
+      );
       
-      print('✅ Requisition status updated successfully');
-      return response.data;
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Requisition status updated successfully');
+        return json.decode(response.body);
+      } else {
+        throw Exception('Failed to update status: ${response.statusCode}');
+      }
     } catch (error) {
       print('❌ Error updating requisition $id status: $error');
       throw _handleApiError(error);
@@ -425,27 +393,32 @@ class RequisitionApiService {
     try {
       print('📋 Fetching reference data for type: $referenceTypeId');
       
-      final response = await _dio.get(ApiConfig.referenceDataEndpoint, queryParameters: {
-        'reference_type': referenceTypeId,
-      });
+      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.referenceDataEndpoint}')
+          .replace(queryParameters: {'reference_type': referenceTypeId.toString()});
       
-      final data = response.data;
-      List<dynamic> referenceList;
+      final response = await http.get(uri);
       
-      if (data['results'] != null) {
-        referenceList = data['results'];
-      } else if (data is List) {
-        referenceList = data;
-      } else {
-        throw Exception('Invalid reference data format');
-      }
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<dynamic> referenceList;
+        
+        if (data['results'] != null) {
+          referenceList = data['results'];
+        } else if (data is List) {
+          referenceList = data;
+        } else {
+          throw Exception('Invalid reference data format');
+        }
 
-      final references = referenceList
-          .map((ref) => ReferenceData.fromJson(ref))
-          .toList();
-      
-      print('✅ Reference data fetched: ${references.length} items');
-      return references;
+        final references = referenceList
+            .map((ref) => ReferenceData.fromJson(ref))
+            .toList();
+        
+        print('✅ Reference data fetched: ${references.length} items');
+        return references;
+      } else {
+        throw Exception('Failed to fetch reference data: ${response.statusCode}');
+      }
     } catch (error) {
       print('❌ Error fetching reference data: $error');
       
@@ -598,28 +571,9 @@ class RequisitionApiService {
 
   /// Handle API errors consistently
   Exception _handleApiError(dynamic error) {
-    if (error is DioException) {
-      final response = error.response;
-      
-      if (response != null) {
-        final data = response.data;
-        String message = 'An error occurred';
-        
-        if (data is Map<String, dynamic>) {
-          message = data['error'] ?? 
-                   data['message'] ?? 
-                   data['detail'] ?? 
-                   'Server error: ${response.statusCode}';
-        } else if (data is String) {
-          message = data;
-        }
-        
-        return Exception('API Error: $message');
-      } else {
-        return Exception('Network error: ${error.message}');
-      }
+    if (error is Exception) {
+      return error;
     }
-    
     return Exception('Unexpected error: $error');
   }
 

@@ -1,7 +1,6 @@
 // lib/providers/requisition_provider.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:hrms/models/requisition.dart';
 import '../services/requisition_api_service.dart';
 
@@ -221,7 +220,6 @@ class RequisitionProvider with ChangeNotifier {
   Future<bool> createRequisition(
     Requisition requisition, {
     File? jobDocument,
-    PlatformFile? platformJobDocument,
   }) async {
     _saving = true;
     _error = null;
@@ -240,7 +238,6 @@ class RequisitionProvider with ChangeNotifier {
       final createdRequisition = await _apiService.createRequisition(
         requisition,
         jobDocument: jobDocument,
-        platformJobDocument: platformJobDocument,
       );
       
       // Add to local list
@@ -265,7 +262,6 @@ class RequisitionProvider with ChangeNotifier {
     int id, 
     Requisition requisition, {
     File? jobDocument,
-    PlatformFile? platformJobDocument,
   }) async {
     _saving = true;
     _error = null;
@@ -285,7 +281,6 @@ class RequisitionProvider with ChangeNotifier {
         id,
         requisition,
         jobDocument: jobDocument,
-        platformJobDocument: platformJobDocument,
       );
       
       // Update in local list

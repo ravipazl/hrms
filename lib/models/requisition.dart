@@ -42,7 +42,7 @@ class Requisition {
     this.justificationText,
     required this.essentialSkills,
     this.desiredSkills,
-    this.status = 'pending',
+    this.status = 'Pending',
     required this.positions,
     required this.skills,
     this.mentionThreeMonths,
@@ -61,13 +61,15 @@ class Requisition {
   }
 
   /// Extract status from API response (handles both string and object)
+  /// FIXED: Keep original capitalization from API (Approved, Rejected, Hold, Pending)
   static String _extractStatus(dynamic status) {
-    if (status == null) return 'pending';
+    if (status == null) return 'Pending';
     if (status is String) return status;
     if (status is Map && status['reference_value'] != null) {
-      return status['reference_value'].toString().toLowerCase().replaceAll(' ', '_');
+      // FIXED: Return original capitalization, don't convert to lowercase
+      return status['reference_value'].toString();
     }
-    return 'pending';
+    return 'Pending';
   }
 
   /// Extract essential skills from skills array

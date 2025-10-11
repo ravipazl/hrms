@@ -311,7 +311,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF5F5F5), // Light gray background to match screenshot
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit Requisition' : 'Create New Requisition'),
         backgroundColor: Colors.white,
@@ -365,38 +365,422 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
             padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header (now scrollable)
-                  _buildHeader(),
-                  
-                  // Edit mode indicator
-                  if (_isEditMode) _buildEditModeIndicator(),
-                  
-                  // Error banner
-                  if (provider.error != null) _buildErrorBanner(provider),
-                  
-                  const SizedBox(height: 24),
-                  _buildBasicInformation(provider),
-                  const SizedBox(height: 24),
-                  _buildJobDescription(),
-                  const SizedBox(height: 24),
-                  _buildPositionCards(provider),
-                  const SizedBox(height: 24),
-                  _buildPersonSpecification(provider),
-                  const SizedBox(height: 24),
-                  _buildSkillsSection(),
-                  const SizedBox(height: 24),
-                  _buildJustificationSection(),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(provider),
-                ],
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.2),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header inside the card
+                    _buildHeaderContent(),
+                    
+                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    
+                    // Edit mode indicator
+                    if (_isEditMode) _buildEditModeIndicator(),
+                    
+                    // Error banner
+                    if (provider.error != null) _buildErrorBanner(provider),
+                    
+                    // Basic Information Section
+                    _buildSectionTitle('Basic Information'),
+                    const SizedBox(height: 16),
+                    _buildBasicInformationContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Job Description Section
+                    _buildSectionTitle('Job Description *'),
+                    const SizedBox(height: 16),
+                    _buildJobDescriptionContent(),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Requisition Details Section
+                    _buildSectionTitle('Requisition Details'),
+                    const SizedBox(height: 16),
+                    _buildPositionCardsContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Person Specification Section
+                    _buildSectionTitle('Person Specification & Justification'),
+                    const SizedBox(height: 16),
+                    _buildPersonSpecificationContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Skills Section
+                    _buildSectionTitle('Skills'),
+                    const SizedBox(height: 16),
+                    _buildSkillsSectionContent(),
+                    
+                    const SizedBox(height: 32),
+                    _buildActionButtons(provider),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildHeaderContent() {
+    return Column(
+      children: [
+        // Logo and company name
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Company logo
+            Container(
+              width: 40,
+              height: 35,
+              child: _buildLogo(),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                'SRI RAMACHANDRA MEDICAL CENTER',
+                style: TextStyle(
+                  fontSize: MediaQuery.of(context).size.width < 600 ? 18 : 24,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1565C0), // Dark blue to match screenshot
+                  letterSpacing: 0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        
+        // Location
+        Text(
+          'PORUR,CHENNAI-600116',
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width < 600 ? 14 : 16,
+            color: const Color(0xFF1565C0), // Dark blue to match screenshot
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        
+        // Form title
+        Text(
+          'TALENT REQUISITION FORM - NEW POSITION/REPLACEMENT',
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width < 600 ? 12 : 16,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1565C0), // Dark blue to match screenshot
+            letterSpacing: 0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF1565C0), // Dark blue to match screenshot
+      ),
+    );
+  }
+
+  Widget _buildBasicInformationContent(RequisitionProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _selectedDepartment,
+            decoration: const InputDecoration(
+              labelText: 'Department *',
+              border: OutlineInputBorder(),
+            ),
+            items: provider.departments.map((dept) => DropdownMenuItem(
+              value: dept.id.toString(),
+              child: Text(dept.referenceValue),
+            )).toList(),
+            onChanged: (value) => setState(() => _selectedDepartment = value),
+            validator: (value) => value == null ? 'Department is required' : null,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _jobPositionController,
+            decoration: const InputDecoration(
+              labelText: 'Job Position *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Job position is required' : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJobDescriptionContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Job Description Type Toggle
+        Row(
+          children: [
+            Radio<String>(
+              value: 'text',
+              groupValue: _jobDescriptionType,
+              onChanged: (value) {
+                setState(() {
+                  _jobDescriptionType = value!;
+                  print('🔘 Switched to TEXT mode');
+                });
+              },
+            ),
+            const Text('Text Description'),
+            const SizedBox(width: 24),
+            Radio<String>(
+              value: 'upload',
+              groupValue: _jobDescriptionType,
+              onChanged: (value) {
+                setState(() {
+                  _jobDescriptionType = value!;
+                  print('🔘 Switched to UPLOAD mode');
+                });
+              },
+            ),
+            const Text('Upload Document'),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        
+        if (_jobDescriptionType == 'text') ...[
+          TextFormField(
+            controller: _jobDescriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Job Description',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+            maxLines: 6,
+            validator: (value) => value?.isEmpty == true ? 'Job description is required' : null,
+          ),
+        ] else ...[
+          _buildFileUpload(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPositionCardsContent(RequisitionProvider provider) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            if (_showPositionCards)
+             
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: () => setState(() => _showPositionCards = !_showPositionCards),
+              icon: Icon(_showPositionCards ? Icons.expand_less : Icons.expand_more),
+              label: Text(_showPositionCards ? 'Hide Details' : 'Add Details'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        
+        if (_showPositionCards) ...[
+          const SizedBox(height: 16),
+          ..._positionCards.asMap().entries.map((entry) {
+            final index = entry.key;
+            final card = entry.value;
+            return _buildPositionCard(provider, index, card);
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPersonSpecificationContent(RequisitionProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _selectedGender,
+            decoration: const InputDecoration(
+              labelText: 'Preferred Gender',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Select Gender')),
+              ...provider.genders.map((gender) => DropdownMenuItem(
+                value: gender.id.toString(),
+                child: Text(gender.referenceValue),
+              )),
+            ],
+            onChanged: (value) => setState(() => _selectedGender = value),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _preferredAgeController,
+            decoration: const InputDecoration(
+              labelText: 'Preferred Age Group',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _qualificationController,
+            decoration: const InputDecoration(
+              labelText: 'Qualification *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Qualification is required' : null,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _experienceController,
+            decoration: const InputDecoration(
+              labelText: 'Experience Required (in years) *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Experience is required' : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkillsSectionContent() {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Essential Skills *',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _essentialSkillsController,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter essential skills separated by commas (e.g., JavaScript, React, Node.js)',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value?.isEmpty == true ? 'Essential skills are required' : null,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Separate multiple skills with commas (,)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Desirable Skills',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _desiredSkillsController,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter desirable skills separated by commas (e.g., Python, SQL, Docker)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Separate multiple skills with commas (,)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Justification Text',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _justificationController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter justification for the requisition',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 4,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1161,22 +1545,32 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(
+                width: 120,
+                child: Text(
+                  'Justification Text',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextFormField(
+                  controller: _justificationController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter justification for the requisition',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 4,
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildJustificationSection() {
-    return _buildSection(
-      title: 'Justification Text',
-      child: TextFormField(
-        controller: _justificationController,
-        decoration: const InputDecoration(
-          labelText: 'Justification Text',
-          border: OutlineInputBorder(),
-          alignLabelWithHint: true,
-        ),
-        maxLines: 4,
       ),
     );
   }
@@ -1563,15 +1957,6 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
           title: 'Skills Requirements',
           child: _buildPreviewSkills(),
         ),
-        
-        const SizedBox(height: 16),
-        
-        // Justification
-        if (_justificationController.text.isNotEmpty)
-          _buildPreviewSection(
-            title: 'Justification',
-            child: _buildPreviewJustification(),
-          ),
       ],
     );
   }
@@ -1881,13 +2266,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       children: [
         _buildPreviewRow('Essential Skills', _essentialSkillsController.text, isMultiline: true),
         _buildPreviewRow('Desirable Skills', _desiredSkillsController.text, isMultiline: true),
+        if (_justificationController.text.isNotEmpty)
+          _buildPreviewRow('Justification Text', _justificationController.text, isMultiline: true),
       ],
     );
-  }
-
-  /// Build justification preview
-  Widget _buildPreviewJustification() {
-    return _buildPreviewRow('Justification Text', _justificationController.text, isMultiline: true);
   }
 
   /// Build preview row

@@ -849,19 +849,36 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: TextFormField(
-                  initialValue: card.vacancyToBeFilled,
-                  decoration: const InputDecoration(
+                  controller: TextEditingController(text: card.vacancyToBeFilled),
+                  decoration: InputDecoration(
                     labelText: 'Vacancy to be Filled On *',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    suffixIcon: Icon(Icons.calendar_today, color: Colors.blue[600]),
+                    hintText: 'Click to select date',
                   ),
                   readOnly: true,
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now().add(const Duration(days: 30)),
+                      initialDate: card.vacancyToBeFilled != null && card.vacancyToBeFilled!.isNotEmpty
+                          ? DateTime.tryParse(card.vacancyToBeFilled!) ?? DateTime.now().add(const Duration(days: 30))
+                          : DateTime.now().add(const Duration(days: 30)),
                       firstDate: DateTime.now(),
                       lastDate: DateTime.now().add(const Duration(days: 365)),
+                      helpText: 'Select Vacancy Date',
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: Colors.blue,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (date != null) {
                       setState(() {
@@ -869,6 +886,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                       });
                     }
                   },
+                  validator: (value) => value?.isEmpty == true ? 'Vacancy date is required' : null,
                 ),
               ),
             ),
@@ -908,7 +926,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue: card.employeeNo,
+                  controller: TextEditingController(text: card.employeeNo),
                   decoration: const InputDecoration(
                     labelText: 'Employee No *',
                     border: OutlineInputBorder(),
@@ -922,7 +940,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.employeeName,
+                  controller: TextEditingController(text: card.employeeName),
                   decoration: const InputDecoration(
                     labelText: 'Employee Name *',
                     border: OutlineInputBorder(),
@@ -935,18 +953,35 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.dateOfResignation,
-                  decoration: const InputDecoration(
+                  controller: TextEditingController(text: card.dateOfResignation),
+                  decoration: InputDecoration(
                     labelText: 'Date of Resignation *',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today, color: Colors.blue[600]),
+                    hintText: 'Click to select date',
                   ),
                   readOnly: true,
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now(),
+                      initialDate: card.dateOfResignation != null && card.dateOfResignation!.isNotEmpty
+                          ? DateTime.tryParse(card.dateOfResignation!) ?? DateTime.now()
+                          : DateTime.now(),
                       firstDate: DateTime.now().subtract(const Duration(days: 365)),
                       lastDate: DateTime.now().add(const Duration(days: 365)),
+                      helpText: 'Select Resignation Date',
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: Colors.blue,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (date != null) {
                       setState(() {
@@ -961,7 +996,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.resignationReason,
+                  controller: TextEditingController(text: card.resignationReason),
                   decoration: const InputDecoration(
                     labelText: 'Resignation Reason *',
                     border: OutlineInputBorder(),
@@ -2049,9 +2084,8 @@ class RequisitionPositionCard {
     this.dateOfResignation,
     this.resignationReason,
   }) {
-    // Set default vacancy date to 30 days from now
+    // Set default vacancy date to TODAY instead of 30 days from now
     vacancyToBeFilled ??= DateTime.now()
-        .add(const Duration(days: 30))
         .toIso8601String()
         .split('T')[0];
   }

@@ -1,6 +1,6 @@
 // lib/screens/requisition_form_screen.dart
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hrms/models/requisition.dart';
@@ -10,6 +10,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/requisition_provider.dart';
 import '../widgets/enhanced_file_upload_widget.dart';
+import '../widgets/multi_file_upload_widget.dart';
+import '../models/file_preview.dart';
 
 class RequisitionFormScreen extends StatefulWidget {
   final Requisition? requisition;
@@ -45,9 +47,8 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   String? _selectedDepartment;
   String? _selectedGender;
   String _jobDescriptionType = 'text';
-  File? _selectedFile;
-  PlatformFile? _selectedPlatformFile; // For web compatibility
-  String? _existingFileUrl;
+  // Multi-file upload support
+  List<FilePreview> _filesPreviews = [];
   
   // Position cards
   List<RequisitionPositionCard> _positionCards = [];
@@ -95,12 +96,41 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     }
     
     final req = widget.requisition!;
-    print('📋 Loading existing requisition data for edit mode:');
-    print('   - ID: ${req.id}');
-    print('   - Job Position: ${req.jobPosition}');
-    print('   - Job Description Type: ${req.jobDescriptionType}');
-    print('   - Job Document URL: ${req.jobDocumentUrl}');
-    print('   - Job Document: ${req.jobDocument}');
+    print('\n' + '='*80);
+    print('📋 LOADING EXISTING REQUISITION DATA FOR EDIT MODE');
+    print('='*80);
+    print('🆔 Requisition ID: ${req.id}');
+    print('📄 Job Position: ${req.jobPosition}');
+    print('\n🔍 CHECKING ALL FILE-RELATED FIELDS:');
+    print('-'*80);
+    
+    // Log ALL the raw data we have
+    print('1️⃣ jobDocumentUrl field:');
+    print('   Type: ${req.jobDocumentUrl.runtimeType}');
+    print('   Value: "${req.jobDocumentUrl}"');
+    print('   isEmpty: ${req.jobDocumentUrl?.isEmpty}');
+    print('   isNotEmpty: ${req.jobDocumentUrl?.isNotEmpty}');
+    
+    print('\n2️⃣ jobDocument field:');
+    print('   Type: ${req.jobDocument.runtimeType}');
+    print('   Value: "${req.jobDocument}"');
+    print('   isEmpty: ${req.jobDocument?.isEmpty}');
+    print('   isNotEmpty: ${req.jobDocument?.isNotEmpty}');
+    
+    print('\n3️⃣ jobDescription field:');
+    print('   Type: ${req.jobDescription.runtimeType}');
+    if (req.jobDescription != null && req.jobDescription!.length > 100) {
+      print('   Value: "${req.jobDescription!.substring(0, 100)}..."');
+    } else {
+      print('   Value: "${req.jobDescription}"');
+    }
+    print('   isEmpty: ${req.jobDescription?.isEmpty}');
+    
+    print('\n4️⃣ jobDescriptionType field:');
+    print('   Type: ${req.jobDescriptionType.runtimeType}');
+    print('   Value: "${req.jobDescriptionType}"');
+    
+    print('-'*80);
     
     setState(() {
       // Set basic fields
@@ -117,28 +147,121 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       _selectedDepartment = req.department;
       _selectedGender = req.preferredGender;
       
-      // FIXED: Properly handle job description type and existing file
-      // Priority: jobDocumentUrl > jobDocument > text mode
-      if (req.jobDocumentUrl != null && req.jobDocumentUrl!.isNotEmpty) {
-        _jobDescriptionType = 'upload';
-        _existingFileUrl = req.jobDocumentUrl;
-        print('✅ Found existing document URL: $_existingFileUrl');
-      } else if (req.jobDocument != null && req.jobDocument!.isNotEmpty) {
-        _jobDescriptionType = 'upload';
-        _existingFileUrl = req.jobDocument;
-        print('✅ Found existing document path: $_existingFileUrl');
+      // ENHANCED: Properly handle job description type and existing files
+      // Load existing files from server (supports multiple files)
+      _filesPreviews.clear();
+      
+      print('\n🔄 STARTING FILE LOADING PROCESS...');
+      print('-'*80);
+      
+      bool hasFiles = false;
+      
+      // Method 1: Check jobDocuments array (multiple files - PREFERRED)
+      if (req.jobDocuments != null && req.jobDocuments!.isNotEmpty) {
+        print('✅ Method 1: Found jobDocuments array');
+        print('   Count: ${req.jobDocuments!.length} files');
+        
+        try {
+          for (var i = 0; i < req.jobDocuments!.length; i++) {
+            final docData = req.jobDocuments![i];
+            print('   📎 Processing file ${i + 1}:');
+            print('      - Data: $docData');
+            
+            final filePreview = FilePreview.fromServer(docData);
+            _filesPreviews.add(filePreview);
+            print('      ✅ Added: ${filePreview.name}');
+          }
+          
+          hasFiles = _filesPreviews.isNotEmpty;
+          print('   ✅ Successfully loaded ${_filesPreviews.length} file(s) from jobDocuments');
+          
+          // CRITICAL: Verify files were actually added
+          print('\n📋 VERIFICATION - Files in _filesPreviews after loading:');
+          for (var i = 0; i < _filesPreviews.length; i++) {
+            print('   ${i + 1}. ${_filesPreviews[i].name} (${_filesPreviews[i].formattedSize})');
+          }
+          print('');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocuments: $e');
+        }
       } else {
-        // Use the stored job description type, defaulting to 'text'
-        _jobDescriptionType = req.jobDescriptionType ?? 'text';
-        _existingFileUrl = null;
-        print('📝 Using text description mode');
+        print('⏭️ Method 1 SKIPPED: jobDocuments is null or empty');
       }
       
-      // ENHANCED: Debug existing file information
-      if (_existingFileUrl != null) {
-        print('🔗 Existing file URL ready for preview: $_existingFileUrl');
-        print('🎯 Job description type set to: $_jobDescriptionType');
+      // Method 2: Check jobDocumentUrl field (single file - backward compatibility)
+      if (!hasFiles && req.jobDocumentUrl != null && req.jobDocumentUrl!.isNotEmpty) {
+        print('✅ Method 2: Found jobDocumentUrl field (single file)');
+        print('   Value: ${req.jobDocumentUrl}');
+        
+        try {
+          final url = req.jobDocumentUrl!;
+          final fileName = url.split('/').last.split('?').first;
+          
+          _filesPreviews.add(FilePreview.fromServer({
+            'name': fileName.isNotEmpty ? fileName : 'Document',
+            'url': url,
+            'size': 0,
+          }));
+          
+          hasFiles = true;
+          print('   ✅ Successfully created FilePreview from jobDocumentUrl');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocumentUrl: $e');
+        }
+      } else if (!hasFiles) {
+        print('⏭️ Method 2 SKIPPED: jobDocumentUrl is null or empty');
       }
+      
+      // Method 3: Check jobDocument field (single file path - legacy support)
+      if (!hasFiles && req.jobDocument != null && req.jobDocument!.isNotEmpty) {
+        print('✅ Method 3: Found jobDocument field (single file path)');
+        print('   Value: ${req.jobDocument}');
+        
+        try {
+          final path = req.jobDocument!;
+          final fileName = path.split('/').last;
+          
+          _filesPreviews.add(FilePreview.fromServer({
+            'name': fileName.isNotEmpty ? fileName : 'Document',
+            'url': path, // Will be constructed in FilePreview.fromServer
+            'path': path,
+            'size': 0,
+          }));
+          
+          hasFiles = true;
+          print('   ✅ Successfully created FilePreview from jobDocument');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocument: $e');
+        }
+      } else if (!hasFiles) {
+        print('⏭️ Method 3 SKIPPED: jobDocument is null or empty');
+      }
+      
+      print('-'*80);
+      
+      // Set job description type based on what we found
+      if (hasFiles && _filesPreviews.isNotEmpty) {
+        _jobDescriptionType = 'upload';
+        print('\n✅ RESULT: Set mode to "upload"');
+        print('   📊 Files loaded: ${_filesPreviews.length}');
+        print('   📋 File list:');
+        for (var i = 0; i < _filesPreviews.length; i++) {
+          print('      ${i + 1}. ${_filesPreviews[i].name}');
+          print('         URL: ${_filesPreviews[i].url}');
+        }
+      } else if (req.jobDescription != null && req.jobDescription!.trim().isNotEmpty) {
+        _jobDescriptionType = 'text';
+        print('\n📝 RESULT: Set mode to "text"');
+        print('   Reason: Has text description, no files found');
+      } else {
+        // Default to text mode if nothing found
+        _jobDescriptionType = 'text';
+        print('\n⚠️ RESULT: Defaulting to "text" mode');
+        print('   Reason: No files AND no text description found');
+      }
+      
+      print('='*80);
+      print('\n');
       
       // Load position cards
       if (req.positions.isNotEmpty) {
@@ -150,7 +273,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       }
     });
     
-    print('✅ Existing data loaded successfully in edit mode');
+    print('✅ Existing data loaded successfully in edit mode\n');
   }
 
   void _addDefaultPositionCard() {
@@ -480,19 +603,66 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               Radio<String>(
                 value: 'text',
                 groupValue: _jobDescriptionType,
-                onChanged: (value) => setState(() => _jobDescriptionType = value!),
+                onChanged: (value) {
+                  setState(() {
+                    _jobDescriptionType = value!;
+                    print('🔘 Switched to TEXT mode');
+                  });
+                },
               ),
               const Text('Text Description'),
               const SizedBox(width: 24),
               Radio<String>(
                 value: 'upload',
                 groupValue: _jobDescriptionType,
-                onChanged: (value) => setState(() => _jobDescriptionType = value!),
+                onChanged: (value) {
+                  setState(() {
+                    _jobDescriptionType = value!;
+                    print('🔘 Switched to UPLOAD mode');
+                  });
+                },
               ),
               const Text('Upload Document'),
             ],
           ),
           const SizedBox(height: 16),
+          
+          // Debug info in development
+          if (kDebugMode) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                border: Border.all(color: Colors.blue[200]!),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'DEBUG INFO:',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                  Text(
+                    'Mode: $_jobDescriptionType | Files: ${_filesPreviews.length}',
+                    style: TextStyle(fontSize: 10, color: Colors.blue[700]),
+                  ),
+                  if (_filesPreviews.isNotEmpty)
+                    Text(
+                      'Files: ${_filesPreviews.map((f) => f.name).join(", ")}',
+                      style: TextStyle(fontSize: 9, color: Colors.blue[600]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
           
           if (_jobDescriptionType == 'text') ...[
             TextFormField(
@@ -514,31 +684,33 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   Widget _buildFileUpload() {
-    // FIXED: Add unique key to force widget rebuild when existing file URL changes
-    final widgetKey = Key('file-upload-${_existingFileUrl ?? 'new'}-${_selectedFile?.path ?? 'none'}-${_selectedPlatformFile?.name ?? 'none'}');
+    // ENHANCED: Multi-file upload widget
+    print('\n📝 Building MultiFileUploadWidget:');
+    print('   - _filesPreviews count: ${_filesPreviews.length}');
+    print('   - Files to pass as initialFiles:');
+    for (var i = 0; i < _filesPreviews.length; i++) {
+      print('      ${i + 1}. ${_filesPreviews[i].name} (isExisting: ${_filesPreviews[i].isExisting})');
+    }
     
-    return EnhancedFileUploadWidget(
-      key: widgetKey,
+    return MultiFileUploadWidget(
       label: null, // We handle the label in the parent section
-      helpText: 'Upload job description document (PDF, DOC, DOCX, JPG, PNG up to 5MB)',
+      helpText: 'Upload job description documents (PDF, DOC, DOCX, JPG, PNG up to 5MB each)',
       required: _jobDescriptionType == 'upload',
-      initialFile: _selectedFile,
-      initialFileUrl: _existingFileUrl,
-      onFileChanged: (File? file) {
+      initialFiles: _filesPreviews,
+      onFilesChanged: (List<FilePreview> files) {
         setState(() {
-          _selectedFile = file;
-          if (file != null) {
-            _existingFileUrl = null; // Clear existing file when new file is selected
-            print('🔄 New file selected, cleared existing URL');
-          }
-        });
-      },
-      onPlatformFileChanged: (PlatformFile? platformFile) {
-        setState(() {
-          _selectedPlatformFile = platformFile;
-          if (platformFile != null) {
-            _existingFileUrl = null; // Clear existing file when new file is selected
-            print('🔄 New platform file selected, cleared existing URL');
+          _filesPreviews = files;
+          print('🔄 Files updated in MultiFileUploadWidget callback:');
+          print('   - New _filesPreviews count: ${files.length}');
+          print('   - Files: ${files.map((f) => f.name).join(", ")}');
+          
+          // CRITICAL: Verify files are actually in the state
+          print('   - Verifying _filesPreviews variable:');
+          print('     * _filesPreviews.length: ${_filesPreviews.length}');
+          if (_filesPreviews.isNotEmpty) {
+            for (var i = 0; i < _filesPreviews.length; i++) {
+              print('     * File ${i + 1}: ${_filesPreviews[i].name} (isExisting: ${_filesPreviews[i].isExisting})');
+            }
           }
         });
       },
@@ -554,7 +726,6 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       },
       allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
       maxFileSizeInMB: 5,
-      showPreview: true,
       enabled: true,
     );
   }
@@ -1042,7 +1213,11 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       children: [
         // Left side - Preview button
         ElevatedButton.icon(
-          onPressed: () => _showFormPreview(),
+          onPressed: () {
+            print('\n👁️ PREVIEW FORM BUTTON CLICKED!');
+            print('   Calling _showFormPreview()...');
+            _showFormPreview();
+          },
           icon: const Icon(Icons.preview),
           label: const Text('Preview Form'),
           style: ElevatedButton.styleFrom(
@@ -1132,28 +1307,29 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       return;
     }
 
-    // Validate job description
-    if (_jobDescriptionType == 'text' && _jobDescriptionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Job description is required'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_jobDescriptionType == 'upload' && 
-        _selectedFile == null && 
-        _selectedPlatformFile == null && 
-        _existingFileUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload a job description document'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+    // FIXED: Allow user to save with EITHER text OR upload (files optional)
+    // Validate job description - require either text OR at least one file
+    final hasText = _jobDescriptionType == 'text' && _jobDescriptionController.text.trim().isNotEmpty;
+    final hasFiles = _jobDescriptionType == 'upload' && _filesPreviews.isNotEmpty;
+    
+    // Allow saving if:
+    // 1. Text mode with text content, OR
+    // 2. Upload mode with files, OR  
+    // 3. Text mode with NO files (user removed all files and switched to text)
+    if (!hasText && !hasFiles) {
+      // Only show error if BOTH are empty
+      if (_jobDescriptionType == 'text') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Job description text is required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // Upload mode with no files - this is now ALLOWED
+      // User may have removed all files intentionally
+      // We'll just proceed with saving
     }
 
     // Create requisition object
@@ -1200,37 +1376,30 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
     bool success;
     if (_isEditMode) {
-      // Determine which file to use
-      File? fileToUpload;
-      PlatformFile? platformFileToUpload;
+      // Extract new files to upload
+      final newFiles = _filesPreviews.where((f) => f.isNew).toList();
+      final existingFiles = _filesPreviews.where((f) => f.isExisting).toList();
       
-      if (kIsWeb) {
-        platformFileToUpload = _selectedPlatformFile;
-      } else {
-        fileToUpload = _selectedFile;
-      }
+      print('📤 Submitting update with:');
+      print('   - New files: ${newFiles.length}');
+      print('   - Existing files: ${existingFiles.length}');
       
       success = await provider.updateRequisition(
         widget.requisition!.id!,
         requisition,
-        jobDocument: fileToUpload,
-
+        jobDocuments: newFiles,
+        existingFiles: existingFiles,
       );
     } else {
-      // Determine which file to use
-      File? fileToUpload;
-      PlatformFile? platformFileToUpload;
+      // Extract new files to upload
+      final newFiles = _filesPreviews.where((f) => f.isNew).toList();
       
-      if (kIsWeb) {
-        platformFileToUpload = _selectedPlatformFile;
-      } else {
-        fileToUpload = _selectedFile;
-      }
+      print('📤 Submitting create with:');
+      print('   - New files: ${newFiles.length}');
       
       success = await provider.createRequisition(
         requisition,
-        jobDocument: fileToUpload,
-
+        jobDocuments: newFiles,
       );
     }
 
@@ -1257,6 +1426,36 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
   /// Show form preview dialog
   void _showFormPreview() {
+    // Capture current state including files
+    final currentJobDescriptionType = _jobDescriptionType;
+    final currentFilesPreviews = List<FilePreview>.from(_filesPreviews);
+    final currentIsEditMode = _isEditMode;
+    
+    // CRITICAL DEBUG: Log state when preview opens
+    print('\n' + '='*80);
+    print('🔍 OPENING PREVIEW DIALOG');
+    print('='*80);
+    print('📊 Current State:');
+    print('   - Edit Mode: $currentIsEditMode');
+    print('   - Job Description Type: $currentJobDescriptionType');
+    print('   - Files in _filesPreviews: ${currentFilesPreviews.length}');
+    if (currentFilesPreviews.isNotEmpty) {
+      print('   - Files list:');
+      for (var i = 0; i < currentFilesPreviews.length; i++) {
+        final file = currentFilesPreviews[i];
+        print('      ${i + 1}. ${file.name}');
+        print('         - Size: ${file.formattedSize}');
+        print('         - Type: ${file.type}');
+        print('         - isNew: ${file.isNew}');
+        print('         - isExisting: ${file.isExisting}');
+        print('         - URL: ${file.url}');
+      }
+    } else {
+      print('   ⚠️ NO FILES IN _filesPreviews!');
+    }
+    print('='*80);
+    print('');
+    
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -1286,7 +1485,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: _buildPreviewContent(),
+                    child: _buildPreviewContent(
+                      files: currentFilesPreviews,
+                      jobDescType: currentJobDescriptionType,
+                    ),
                   ),
                 ),
                 
@@ -1353,7 +1555,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   /// Build preview content (read-only form view)
-  Widget _buildPreviewContent() {
+  Widget _buildPreviewContent({
+    required List<FilePreview> files,
+    required String jobDescType,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1376,7 +1581,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
         // Job Description
         _buildPreviewSection(
           title: 'Job Description',
-          child: _buildPreviewJobDescription(),
+          child: _buildPreviewJobDescription(
+            files: files,
+            jobDescType: jobDescType,
+          ),
         ),
         
         const SizedBox(height: 16),
@@ -1501,46 +1709,115 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   /// Build job description preview
-  Widget _buildPreviewJobDescription() {
-    if (_jobDescriptionType == 'text') {
-      return _buildPreviewRow('Job Description', _jobDescriptionController.text, isMultiline: true);
-    } else {
-      String fileInfo = 'No document uploaded';
-      if (_selectedFile != null) {
-        fileInfo = 'File: ${_selectedFile!.path.split('/').last}';
-      } else if (_selectedPlatformFile != null) {
-        fileInfo = 'File: ${_selectedPlatformFile!.name} (${_formatFileSize(_selectedPlatformFile!.size)})';
-      } else if (_existingFileUrl != null) {
-        fileInfo = 'Existing file: ${_existingFileUrl!.split('/').last}';
+  Widget _buildPreviewJobDescription({
+    required List<FilePreview> files,
+    required String jobDescType,
+  }) {
+    // CRITICAL: Add debug logging
+    print('\n🔍 PREVIEW - Job Description Type: $jobDescType');
+    print('🔍 PREVIEW - Files count: ${files.length}');
+    if (files.isNotEmpty) {
+      print('🔍 PREVIEW - Files list:');
+      for (var i = 0; i < files.length; i++) {
+        print('   ${i + 1}. ${files[i].name} (${files[i].formattedSize})');
       }
+    }
+    
+    // ENHANCED: Show files if they exist, regardless of mode setting
+    // This handles cases where files were uploaded but mode wasn't switched
+    if (files.isNotEmpty) {
+      print('✅ PREVIEW - Showing ${files.length} files (FORCE DISPLAY)');
       
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildPreviewRow('Job Description Type', 'Document Upload'),
-          _buildPreviewRow('Document', fileInfo),
-          if (_existingFileUrl != null || _selectedPlatformFile != null || _selectedFile != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  if (_existingFileUrl != null) {
-                    // Show preview for existing file
-                    _previewExistingFile();
-                  } else {
-                    // Show preview for new file
-                    _previewNewFile();
-                  }
-                },
-                icon: const Icon(Icons.visibility, size: 16),
-                label: const Text('Preview Document'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                ),
+          _buildPreviewRow('Documents', '${files.length} document(s) uploaded'),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.only(left: 8, bottom: 4),
+            child: Text(
+              'Uploaded Files:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.black87,
               ),
             ),
+          ),
+          ...files.map((file) => Container(
+            margin: const EdgeInsets.only(left: 16, bottom: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  file.type == 'pdf' ? Icons.picture_as_pdf :
+                  file.type == 'image' ? Icons.image :
+                  Icons.insert_drive_file,
+                  size: 20,
+                  color: Colors.blue[700],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        file.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        file.formattedSize,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (file.isExisting)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green[100],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green[300]!),
+                    ),
+                    child: Text(
+                      'Existing',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          )),
+        ],
+      );
+    }
+    
+    // No files - check mode
+    if (jobDescType == 'text') {
+      return _buildPreviewRow('Job Description', _jobDescriptionController.text, isMultiline: true);
+    } else {
+      // UPLOAD mode - show no files message
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPreviewRow('Job Description Type', 'Document Upload'),
+          _buildPreviewRow('Documents', 'No documents uploaded'),
         ],
       );
     }
@@ -1688,80 +1965,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     }
   }
 
-  /// Preview existing file from form preview - Direct opening
-  void _previewExistingFile() {
-    if (_existingFileUrl != null) {
-      print('🔗 Opening existing file directly: $_existingFileUrl');
-      
-      if (kIsWeb) {
-        // Determine file extension for optimized viewing
-        final fileName = _existingFileUrl!.split('/').last;
-        final extension = _getFileExtension(fileName).toLowerCase();
-        
-        String viewUrl = _existingFileUrl!;
-        if (extension == 'pdf') {
-          viewUrl = '$_existingFileUrl#view=FitH';
-        } else if (['doc', 'docx'].contains(extension)) {
-          if (_existingFileUrl!.contains('127.0.0.1') || _existingFileUrl!.contains('localhost')) {
-            viewUrl = _existingFileUrl!.contains('?') ? '$_existingFileUrl&disposition=inline' : '$_existingFileUrl?disposition=inline';
-          }
-        }
-        
-        html.window.open(viewUrl, '_blank');
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Opening ${fileName} in new tab...'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: Colors.green[600],
-          ),
-        );
-      } else {
-        launchUrl(Uri.parse(_existingFileUrl!), mode: LaunchMode.externalApplication);
-      }
-    }
-  }
 
-  /// Preview new file from form preview - Direct opening
-  void _previewNewFile() {
-    if (kIsWeb && _selectedPlatformFile != null) {
-      // Create blob URL and open directly
-      final extension = _getFileExtension(_selectedPlatformFile!.name).toLowerCase();
-      final fileName = _selectedPlatformFile!.name;
-      
-      try {
-        if (['pdf', 'jpg', 'jpeg', 'png'].contains(extension)) {
-          final mimeType = extension == 'pdf' ? 'application/pdf' : 'image/${extension == 'jpg' ? 'jpeg' : extension}';
-          final blob = html.Blob([_selectedPlatformFile!.bytes!], mimeType);
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          
-          // Add PDF viewer parameters if needed
-          final viewUrl = extension == 'pdf' ? '$url#view=FitH' : url;
-          
-          html.window.open(viewUrl, '_blank');
-          
-          // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Opening $fileName in new tab...'),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Colors.green[600],
-            ),
-          );
-          
-          Future.delayed(const Duration(seconds: 60), () => html.Url.revokeObjectUrl(url));
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error previewing file: $e'),
-            backgroundColor: Colors.red[600],
-          ),
-        );
-      }
-    }
-  }
 
   /// Helper method to get file extension
   String _getFileExtension(String fileName) {

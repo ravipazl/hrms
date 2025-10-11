@@ -1,5 +1,7 @@
 // lib/models/requisition/requisition.dart
 
+import 'dart:convert';
+
 /// Main Requisition Model
 class Requisition {
   final int? id;
@@ -10,6 +12,7 @@ class Requisition {
   final String? jobDescription;
   final String? jobDocument;
   final String? jobDocumentUrl;
+  final List<Map<String, dynamic>>? jobDocuments; // Multiple documents as JSON
   final String jobDescriptionType; // 'text' or 'upload'
   final String? preferredGender;
   final String? preferredAgeGroup;
@@ -34,6 +37,7 @@ class Requisition {
     this.jobDescription,
     this.jobDocument,
     this.jobDocumentUrl,
+    this.jobDocuments,
     this.jobDescriptionType = 'text',
     this.preferredGender,
     this.preferredAgeGroup,
@@ -122,9 +126,35 @@ class Requisition {
     print('📎 Document-related fields in API response:');
     print('   - job_document: ${json['job_document']}');
     print('   - job_document_url: ${json['job_document_url']}');
+    print('   - job_documents: ${json['job_documents']}');
     print('   - job_description_type: ${json['job_description_type']}');
     print('   - job_description: ${json['job_description'] != null ? '(has text)' : '(null)'}');
     print('   - jobDescription: ${json['jobDescription'] != null ? '(has text)' : '(null)'}');
+    
+    // ENHANCED: Parse multiple documents from JSON
+    List<Map<String, dynamic>>? documentsData;
+    if (json['job_documents'] != null) {
+      if (json['job_documents'] is List) {
+        documentsData = (json['job_documents'] as List)
+            .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+            .where((doc) => doc.isNotEmpty)
+            .toList();
+      } else if (json['job_documents'] is String) {
+        // Try to parse JSON string
+        try {
+          final parsed = jsonDecode(json['job_documents']);
+          if (parsed is List) {
+            documentsData = (parsed as List)
+                .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+                .where((doc) => doc.isNotEmpty)
+                .toList();
+          }
+        } catch (e) {
+          print('⚠️ Could not parse job_documents JSON: $e');
+        }
+      }
+    }
+    print('📎 Documents parsed: ${documentsData?.length ?? 0} files');
     
     // Extract skills data if available
     final skillsData = json['skills'] as List? ?? [];
@@ -150,6 +180,7 @@ class Requisition {
       // FIXED: Handle document fields with complete URL construction
       jobDocument: _constructCompleteUrlIfNeeded(json['job_document']?.toString()),
       jobDocumentUrl: _constructCompleteUrlIfNeeded(json['job_document_url']?.toString()),
+      jobDocuments: documentsData,
       jobDescriptionType: json['job_description_type'] ?? 'text',
       preferredGender: json['preferred_gender']?.toString(),
       // Handle both frontend and backend field names
@@ -184,6 +215,7 @@ class Requisition {
     print('✅ Requisition parsed with document fields:');
     print('   - jobDocument: ${requisition.jobDocument}');
     print('   - jobDocumentUrl: ${requisition.jobDocumentUrl}');
+    print('   - jobDocuments: ${requisition.jobDocuments?.length ?? 0} files');
     print('   - jobDescriptionType: ${requisition.jobDescriptionType}');
     
     return requisition;
@@ -221,6 +253,7 @@ class Requisition {
     String? jobDescription,
     String? jobDocument,
     String? jobDocumentUrl,
+    List<Map<String, dynamic>>? jobDocuments,
     String? jobDescriptionType,
     String? preferredGender,
     String? preferredAgeGroup,
@@ -245,6 +278,7 @@ class Requisition {
       jobDescription: jobDescription ?? this.jobDescription,
       jobDocument: jobDocument ?? this.jobDocument,
       jobDocumentUrl: jobDocumentUrl ?? this.jobDocumentUrl,
+      jobDocuments: jobDocuments ?? this.jobDocuments,
       jobDescriptionType: jobDescriptionType ?? this.jobDescriptionType,
       preferredGender: preferredGender ?? this.preferredGender,
       preferredAgeGroup: preferredAgeGroup ?? this.preferredAgeGroup,

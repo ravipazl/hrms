@@ -195,11 +195,29 @@ class RequisitionApiService {
     List<FilePreview>? jobDocuments,
   }) async {
     try {
+      print('\n' + '='*80);
+      print('📝 API SERVICE - CREATE REQUISITION');
+      print('='*80);
+      print('Requisition.justificationText: "${requisition.justificationText}"');
+      print('='*80);
+      
       print('📝 Creating requisition...');
       print('📤 Files to upload: ${jobDocuments?.length ?? 0}');
       
       final mappedData = _mapFormDataToBackend(requisition);
-      print('📤 Mapped data structure: $mappedData');
+      print('\n📦 MAPPED DATA TO SEND:');
+      print('='*80);
+      mappedData.forEach((key, value) {
+        if (key == 'preference_justification') {
+          print('✨ $key: "$value"');
+        } else if (value is List || value is Map) {
+          print('$key: ${value.runtimeType}');
+        } else {
+          print('$key: $value');
+        }
+      });
+      print('='*80);
+      print('');
 
       if (jobDocuments != null && jobDocuments.isNotEmpty) {
         // File upload with MultipartRequest

@@ -236,6 +236,13 @@ class RequisitionProvider with ChangeNotifier {
         return false;
       }
 
+      print('\n' + '='*80);
+      print('📦 CREATE REQUISITION - DEBUG');
+      print('='*80);
+      print('Requisition object justificationText: "${requisition.justificationText}"');
+      print('='*80);
+      print('');
+
       print('📤 Creating requisition with ${jobDocuments?.length ?? 0} file(s)');
       
       final createdRequisition = await _apiService.createRequisition(

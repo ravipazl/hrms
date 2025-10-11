@@ -841,7 +841,13 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
 
   Widget _buildJobDescriptionRow() {
     final hasTextDescription = _requisition?.jobDescription != null && _requisition!.jobDescription!.trim().isNotEmpty;
-    final hasDocument = _requisition?.jobDocumentUrl != null && _requisition!.jobDocumentUrl!.isNotEmpty;
+    
+    // ENHANCED: Check for multiple documents (jobDocuments array)
+    final hasMultipleDocuments = _requisition?.jobDocuments != null && _requisition!.jobDocuments!.isNotEmpty;
+    
+    // Fallback: Check for single document (legacy support)
+    final hasSingleDocument = !hasMultipleDocuments && 
+                              (_requisition?.jobDocumentUrl != null && _requisition!.jobDocumentUrl!.isNotEmpty);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -858,7 +864,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
                 child: Text(
                   hasTextDescription
                       ? _requisition!.jobDescription!
-                      : (hasDocument ? '' : 'No job description provided'),
+                      : (hasMultipleDocuments || hasSingleDocument ? '' : 'No job description provided'),
                   style: TextStyle(
                     fontSize: 12,
                     color: hasTextDescription ? Colors.blue.shade600 : Colors.grey.shade500,
@@ -868,7 +874,138 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
               ),
             ],
           ),
-          if (hasDocument) ...[
+          
+          // ENHANCED: Display multiple documents from jobDocuments array
+          if (hasMultipleDocuments) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.attach_file, size: 14, color: Colors.blue.shade700),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Attached Documents (${_requisition!.jobDocuments!.length})',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._requisition!.jobDocuments!.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final doc = entry.value;
+                    final fileName = doc['name']?.toString() ?? 'Document ${index + 1}';
+                    final fileUrl = doc['url']?.toString() ?? '';
+                    final fileSize = doc['size'];
+                    final fileType = doc['type']?.toString() ?? '';
+                    
+                    // Format file size
+                    String formattedSize = 'Unknown size';
+                    if (fileSize != null && fileSize is int) {
+                      if (fileSize < 1024) {
+                        formattedSize = '$fileSize B';
+                      } else if (fileSize < 1024 * 1024) {
+                        formattedSize = '${(fileSize / 1024).toStringAsFixed(1)} KB';
+                      } else {
+                        formattedSize = '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+                      }
+                    }
+                    
+                    // Determine icon based on file type
+                    IconData fileIcon = Icons.insert_drive_file;
+                    Color iconColor = Colors.grey.shade600;
+                    if (fileType.contains('pdf')) {
+                      fileIcon = Icons.picture_as_pdf;
+                      iconColor = Colors.red.shade600;
+                    } else if (fileType.contains('image') || 
+                               fileName.toLowerCase().endsWith('.jpg') || 
+                               fileName.toLowerCase().endsWith('.jpeg') || 
+                               fileName.toLowerCase().endsWith('.png')) {
+                      fileIcon = Icons.image;
+                      iconColor = Colors.blue.shade600;
+                    } else if (fileName.toLowerCase().endsWith('.doc') || 
+                               fileName.toLowerCase().endsWith('.docx')) {
+                      fileIcon = Icons.description;
+                      iconColor = Colors.blue.shade800;
+                    }
+                    
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      child: InkWell(
+                        onTap: () {
+                          String url = fileUrl;
+                          if (!url.startsWith('http')) {
+                            url = 'http://127.0.0.1:8000$url';
+                          }
+                          print('📂 Opening document: $url');
+                          html.window.open(url, '_blank');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(fileIcon, size: 16, color: iconColor),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      fileName,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.blue.shade700,
+                                        decoration: TextDecoration.underline,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      formattedSize,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.open_in_new,
+                                size: 14,
+                                color: Colors.blue.shade600,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+          ]
+          // Fallback: Display single document (legacy support)
+          else if (hasSingleDocument) ...[
             const SizedBox(height: 4),
             InkWell(
               onTap: () {

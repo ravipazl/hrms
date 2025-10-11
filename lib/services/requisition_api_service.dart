@@ -240,7 +240,7 @@ class RequisitionApiService {
           }
         });
         
-        // Add multiple files
+        // Add multiple files with indexed field names (job_document_0, job_document_1, etc.)
         for (var i = 0; i < jobDocuments.length; i++) {
           final filePreview = jobDocuments[i];
           if (filePreview.isNew) {
@@ -248,22 +248,22 @@ class RequisitionApiService {
               // Web platform
               request.files.add(
                 http.MultipartFile.fromBytes(
-                  'job_documents', // Use same field name for all files
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
                   filePreview.platformFile!.bytes!,
                   filename: filePreview.name,
                 ),
               );
-              print('🔌 Added web file ${i + 1}: ${filePreview.name}');
+              print('🔌 Added web file ${i + 1}: ${filePreview.name} as job_document_$i');
             } else if (!kIsWeb && filePreview.file != null) {
               // Mobile platform
               request.files.add(
                 await http.MultipartFile.fromPath(
-                  'job_documents',
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
                   filePreview.file!.path,
                   filename: filePreview.name,
                 ),
               );
-              print('🔌 Added mobile file ${i + 1}: ${filePreview.name}');
+              print('🔌 Added mobile file ${i + 1}: ${filePreview.name} as job_document_$i');
             }
           }
         }
@@ -349,7 +349,7 @@ class RequisitionApiService {
           print('📦 Sent ${existingFiles.length} existing file(s) metadata');
         }
         
-        // Add new files
+        // Add new files with indexed field names (job_document_0, job_document_1, etc.)
         for (var i = 0; i < jobDocuments.length; i++) {
           final filePreview = jobDocuments[i];
           if (filePreview.isNew) {
@@ -357,22 +357,22 @@ class RequisitionApiService {
               // Web platform
               request.files.add(
                 http.MultipartFile.fromBytes(
-                  'job_documents',
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
                   filePreview.platformFile!.bytes!,
                   filename: filePreview.name,
                 ),
               );
-              print('🔌 Added web file ${i + 1}: ${filePreview.name}');
+              print('🔌 Added web file ${i + 1}: ${filePreview.name} as job_document_$i');
             } else if (!kIsWeb && filePreview.file != null) {
               // Mobile platform
               request.files.add(
                 await http.MultipartFile.fromPath(
-                  'job_documents',
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
                   filePreview.file!.path,
                   filename: filePreview.name,
                 ),
               );
-              print('🔌 Added mobile file ${i + 1}: ${filePreview.name}');
+              print('🔌 Added mobile file ${i + 1}: ${filePreview.name} as job_document_$i');
             }
           }
         }

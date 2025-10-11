@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hrms/models/requisition.dart';
 import 'dart:html' as html;
 import 'package:provider/provider.dart';
@@ -289,48 +288,24 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   Widget _buildLogo() {
-    // Try to load image logo first, fallback to triangle if not found
-    return FutureBuilder<bool>(
-      future: _checkIfImageExists(),
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data == true) {
-          // Show image logo
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              _getLogoPath(),
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                // Fallback to triangle if image fails to load
-                return CustomPaint(
-                  painter: TrianglePainter(),
-                );
-              },
-            ),
+    // Load company logo from assets
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        'assets/images/logo.png',
+        width: 40,
+        height: 35,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Show a placeholder icon if logo is not found
+          return Icon(
+            Icons.business,
+            size: 35,
+            color: Colors.blue[600],
           );
-        } else {
-          // Show triangle logo as fallback
-          return CustomPaint(
-            painter: TrianglePainter(),
-          );
-        }
-      },
+        },
+      ),
     );
-  }
-
-  Future<bool> _checkIfImageExists() async {
-    try {
-      final logoPath = _getLogoPath();
-      await rootBundle.load(logoPath);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  String _getLogoPath() {
-    // Return the primary logo path
-    return 'assets/images/logo.png';
   }
 
   @override
@@ -627,42 +602,6 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
           ),
           const SizedBox(height: 16),
           
-          // Debug info in development
-          if (kDebugMode) ...[
-            Container(
-              padding: const EdgeInsets.all(8),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                border: Border.all(color: Colors.blue[200]!),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'DEBUG INFO:',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue[800],
-                    ),
-                  ),
-                  Text(
-                    'Mode: $_jobDescriptionType | Files: ${_filesPreviews.length}',
-                    style: TextStyle(fontSize: 10, color: Colors.blue[700]),
-                  ),
-                  if (_filesPreviews.isNotEmpty)
-                    Text(
-                      'Files: ${_filesPreviews.map((f) => f.name).join(", ")}',
-                      style: TextStyle(fontSize: 9, color: Colors.blue[600]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
           
           if (_jobDescriptionType == 'text') ...[
             TextFormField(
@@ -1209,52 +1148,30 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
   Widget _buildActionButtons(RequisitionProvider provider) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // Left side - Preview button
-        ElevatedButton.icon(
-          onPressed: () {
-            print('\n👁️ PREVIEW FORM BUTTON CLICKED!');
-            print('   Calling _showFormPreview()...');
-            _showFormPreview();
-          },
-          icon: const Icon(Icons.preview),
-          label: const Text('Preview Form'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green[600],
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        OutlinedButton(
+          onPressed: _navigateToRequisitionList,
+          child: const Text('Cancel'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ),
-        
-        // Right side - Cancel and Save buttons
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            OutlinedButton(
-              onPressed: _navigateToRequisitionList,
-              child: const Text('Cancel'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton(
-              onPressed: provider.saving ? null : () => _submitForm(provider),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: provider.saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEditMode ? 'Update Requisition' : 'Save Requisition'),
-            ),
-          ],
+        const SizedBox(width: 16),
+        ElevatedButton(
+          onPressed: provider.saving ? null : () => _submitForm(provider),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          child: provider.saving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_isEditMode ? 'Update Requisition' : 'Save Requisition'),
         ),
       ],
     );
@@ -1745,63 +1662,101 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               ),
             ),
           ),
-          ...files.map((file) => Container(
-            margin: const EdgeInsets.only(left: 16, bottom: 8),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.blue[200]!),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  file.type == 'pdf' ? Icons.picture_as_pdf :
-                  file.type == 'image' ? Icons.image :
-                  Icons.insert_drive_file,
-                  size: 20,
-                  color: Colors.blue[700],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        file.name,
-                        style: const TextStyle(
-                          fontSize: 14,
+          ...files.map((file) => InkWell(
+            onTap: () async {
+              // Open the file in a new tab/window
+              if (file.url != null && file.url!.isNotEmpty) {
+                print('📂 Opening file: ${file.url}');
+                try {
+                  final uri = Uri.parse(file.url!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    print('❌ Cannot launch URL: ${file.url}');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Cannot open file'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('❌ Error launching URL: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error opening file: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.only(left: 16, bottom: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    file.type == 'pdf' ? Icons.picture_as_pdf :
+                    file.type == 'image' ? Icons.image :
+                    Icons.insert_drive_file,
+                    size: 20,
+                    color: Colors.blue[700],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          file.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.underline,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          file.formattedSize,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (file.isExisting)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Text(
+                        'Existing',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.green[700],
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Text(
-                        file.formattedSize,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (file.isExisting)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green[300]!),
                     ),
-                    child: Text(
-                      'Existing',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.open_in_new,
+                    size: 16,
+                    color: Colors.blue[600],
                   ),
-              ],
+                ],
+              ),
             ),
           )),
         ],
@@ -2067,27 +2022,6 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     
     super.dispose();
   }
-}
-
-// Custom Triangle Painter for the logo fallback
-class TrianglePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    path.moveTo(size.width / 2, 0); // Top point
-    path.lineTo(0, size.height); // Bottom left
-    path.lineTo(size.width, size.height); // Bottom right
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
 // Helper class for managing position cards

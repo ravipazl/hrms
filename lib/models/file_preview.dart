@@ -73,8 +73,16 @@ class FilePreview {
     print('   - Initial filePath: "$filePath"');
     print('   - Initial fileUrl: "$fileUrl"');
     
-    // Construct full URL from path if needed
-    if (fileUrl.isEmpty && filePath.isNotEmpty) {
+    // Construct full URL from path or relative URL
+    if (fileUrl.isNotEmpty && !fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
+      // Handle relative URLs (e.g., "/media/...")
+      if (fileUrl.startsWith('/')) {
+        fileUrl = 'http://127.0.0.1:8000$fileUrl';
+      } else {
+        fileUrl = 'http://127.0.0.1:8000/$fileUrl';
+      }
+    } else if (fileUrl.isEmpty && filePath.isNotEmpty) {
+      // Construct URL from path if URL is empty
       if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
         fileUrl = filePath;
       } else if (filePath.startsWith('/media/')) {

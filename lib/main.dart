@@ -478,6 +478,11 @@ class RequisitionEditWrapper extends StatelessWidget {
 // Data loading functions
 Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisitionId) async {
   try {
+    print('\n' + '='*80);
+    print('🔍 _loadRequisitionForEdit CALLED');
+    print('='*80);
+    print('🎯 Requisition ID to load: $requisitionId');
+    
     print('🔍 Loading requisition for edit: $requisitionId');
     final provider = Provider.of<RequisitionProvider>(context, listen: false);
     
@@ -485,6 +490,9 @@ Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisiti
     print('🛠️ Initializing provider...');
     if (provider.departments.isEmpty) {
       await provider.initialize();
+      print('✅ Provider initialized');
+    } else {
+      print('ℹ️ Provider already initialized');
     }
     
     // Wait a moment for initialization
@@ -495,20 +503,44 @@ Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisiti
     final requisition = await provider.getRequisition(requisitionId);
     
     if (requisition != null) {
-      print('✅ Successfully loaded requisition for edit:');
+      print('\n✅ SUCCESSFULLY LOADED REQUISITION:');
       print('   - ID: ${requisition.id}');
       print('   - Job Position: ${requisition.jobPosition}');
       print('   - Department: ${requisition.department}');
       print('   - Qualification: ${requisition.qualification}');
       print('   - Essential Skills: ${requisition.essentialSkills}');
       print('   - Positions count: ${requisition.positions.length}');
+      
+      // CRITICAL: Check file-related fields
+      print('\n📄 FILE-RELATED FIELDS:');
+      print('   - jobDescription: ${requisition.jobDescription}');
+      print('   - jobDescriptionType: ${requisition.jobDescriptionType}');
+      print('   - jobDocument: ${requisition.jobDocument}');
+      print('   - jobDocumentUrl: ${requisition.jobDocumentUrl}');
+      print('   - jobDocuments array: ${requisition.jobDocuments?.length ?? 0} items');
+      
+      if (requisition.jobDocuments != null && requisition.jobDocuments!.isNotEmpty) {
+        print('   📎 Files in jobDocuments:');
+        for (var i = 0; i < requisition.jobDocuments!.length; i++) {
+          print('      ${i + 1}. ${requisition.jobDocuments![i]}');
+        }
+      }
+      
+      print('='*80);
+      print('');
     } else {
-      print('❌ Requisition $requisitionId not found for edit');
+      print('\n❌ REQUISITION $requisitionId NOT FOUND!');
+      print('='*80);
+      print('');
     }
     
     return requisition;
-  } catch (e) {
-    print('❌ Error loading requisition for edit: $e');
+  } catch (e, stackTrace) {
+    print('\n❌ ERROR IN _loadRequisitionForEdit:');
+    print('   Error: $e');
+    print('   Stack trace: $stackTrace');
+    print('='*80);
+    print('');
     return null;
   }
 }

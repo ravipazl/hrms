@@ -25,6 +25,8 @@ dependencies:
   # UI Components
   flutter_svg: ^2.0.9
   file_picker: ^6.1.1
+  url_launcher: ^6.2.4
+  path: ^1.8.3
   
   # Storage (Web compatible)
   shared_preferences: ^2.2.2
@@ -51,3 +53,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets
+  assets:
+    - assets/images/
+    - assets/images/logo.png

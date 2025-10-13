@@ -180,17 +180,17 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   ),
                 ),
                 // ✅ Show template ID in edit/view mode
-                if (widget.templateId != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Template ID: ${widget.templateId}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
+                // if (widget.templateId != null)
+                //   Padding(
+                //     padding: const EdgeInsets.only(top: 4),
+                //     child: Text(
+                //       'Template ID: ${widget.templateId}',
+                //       style: TextStyle(
+                //         fontSize: 12,
+                //         color: Colors.grey.shade600,
+                //       ),
+                //     ),
+                //   ),
               ],
             ),
           ),
@@ -296,52 +296,112 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
         border: Border(right: BorderSide(color: Colors.grey.shade200)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(top: 10, left: 24, right: 24, bottom: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Template Information
+            // Template Name field
             const Text(
-              'Template Information',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Template Name *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
             ),
-            const SizedBox(height: 16),
-            
-            // Name field
+            const SizedBox(height: 8),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Template Name *',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+                ),
                 hintText: 'e.g., Standard Requisition Approval',
+                hintStyle: TextStyle(color: Colors.grey.shade400),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: Colors.white,
               ),
               onChanged: (value) => provider.updateTemplateInfo(name: value),
               enabled: widget.mode != 'view',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             
             // Description field
+            const Text(
+              'Description',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-                hintText: 'Describe this workflow template',
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+                ),
+                hintText: 'Describe this requisition approval workflow template',
+                hintStyle: TextStyle(color: Colors.grey.shade400),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: Colors.white,
               ),
               maxLines: 3,
               onChanged: (value) => provider.updateTemplateInfo(description: value),
               enabled: widget.mode != 'view',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             
-            // Stage dropdown
+            // Workflow Stage dropdown
+            const Text(
+              'Workflow Stage *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             DropdownButtonFormField<int>(
               initialValue: provider.selectedStage?.id,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Workflow Stage *',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                filled: true,
+                fillColor: Colors.white,
               ),
               items: provider.availableStages.map((stage) {
                 return DropdownMenuItem<int>(
@@ -372,9 +432,18 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                       }
                     },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             
-            // ✅ NEW: Department dropdown
+            // Department dropdown
+            const Text(
+              'Department',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             if (_loadingDepartments)
               const Center(
                 child: Padding(
@@ -385,19 +454,33 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             else
               DropdownButtonFormField<int>(
                 value: provider.template.department,
-                isExpanded: true, // ✅ FIX: Prevent overflow
-                decoration: const InputDecoration(
-                  labelText: 'Department',
-                  border: OutlineInputBorder(),
-                  hintText: 'Optional',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                isExpanded: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.blue, width: 2),
+                  ),
+                  hintText: '-- Select Department --',
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
                 items: [
-                  const DropdownMenuItem<int>(
+                  DropdownMenuItem<int>(
                     value: null,
                     child: Text(
-                      '-- Global --',
-                      overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                      '-- Select Department --',
+                      style: TextStyle(color: Colors.grey.shade600),
+                      overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                   ),
@@ -406,7 +489,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                       value: dept.id,
                       child: Text(
                         dept.name,
-                        overflow: TextOverflow.ellipsis, // ✅ FIX: Handle long text
+                        overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                     );
@@ -418,7 +501,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                         provider.updateTemplateInfo(department: value);
                       },
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             
             // Node Palette
             if (widget.mode != 'view') _buildNodePalette(provider),
@@ -432,14 +515,13 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Available Nodes',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Click to add nodes to the workflow',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+        Text(
+          'Add Workflow Step - ${provider.selectedStage?.description ?? "Requisition"}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
         ),
         const SizedBox(height: 16),
         
@@ -467,52 +549,39 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                onTap: canAdd
-                    ? () => provider.addNode(constraint.node)
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: canAdd ? Colors.blue.shade50 : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: canAdd ? Colors.blue.shade200 : Colors.grey.shade300,
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canAdd
+                      ? () => provider.addNode(constraint.node)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canAdd ? const Color(0xFF2563EB) : Colors.grey.shade300,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade600,
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        constraint.node.type == 'Stop'
-                            ? Icons.stop_circle
-                            : Icons.check_circle,
-                        color: canAdd ? Colors.blue : Colors.grey,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              constraint.node.displayName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: canAdd ? Colors.black : Colors.grey,
-                              ),
-                            ),
-                            Text(
-                              '$existingCount/${constraint.maxCount} added',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: canAdd ? Colors.grey.shade600 : Colors.grey,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        constraint.node.displayName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Icon(
-                        canAdd ? Icons.add : Icons.block,
-                        color: canAdd ? Colors.blue : Colors.grey,
+                      Text(
+                        '$existingCount/${constraint.maxCount}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ],
                   ),

@@ -8,8 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
 import 'providers/workflow_provider.dart';
+import 'providers/form_builder_provider.dart';
 
 import 'screens/workflow_creation_screen.dart';
+// import 'screens/home_screen.dart';
+import 'screens/form_builder/form_builder_screen.dart';
 
 void main() {
   setPathUrlStrategy();
@@ -17,7 +20,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   Widget _buildErrorScreen(String title, String message) {
     return Scaffold(
@@ -56,6 +59,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => WorkflowProvider()),
         ChangeNotifierProvider(create: (_) => RequisitionProvider()),
+        ChangeNotifierProvider(create: (_) => FormBuilderProvider()),
       ],
       child: MaterialApp(
         title: 'HRMS Workflow Management',
@@ -178,6 +182,45 @@ class MyApp extends StatelessWidget {
                 builder: (context) => const RequisitionFormScreen(),
               );
             
+            // Form Builder routes
+            case '/form-builder':
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => const FormBuilderScreen(),
+              );
+            
+            case '/form-builder/edit':
+              final formId = queryParams['id'];
+              if (formId == null) {
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => _buildErrorScreen(
+                    'Form ID Required',
+                    'Edit mode requires ?id=xxx parameter',
+                  ),
+                );
+              }
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => FormBuilderScreen(templateId: formId),
+              );
+            
+            case '/form-builder/view':
+              final formId = queryParams['id'];
+              if (formId == null) {
+                return MaterialPageRoute(
+                  settings: settings,
+                  builder: (context) => _buildErrorScreen(
+                    'Form ID Required',
+                    'View mode requires ?id=xxx parameter',
+                  ),
+                );
+              }
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (context) => FormBuilderScreen(templateId: formId),
+              );
+            
             case '':
             default:
               return MaterialPageRoute(
@@ -256,6 +299,19 @@ class WorkflowListScreen extends StatelessWidget {
                         onPressed: () => Navigator.pushNamed(context, '/view'),
                         icon: const Icon(Icons.visibility, size: 24),
                         label: const Text('View Template', style: TextStyle(fontSize: 16)),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 200,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, '/form-builder'),
+                        icon: const Icon(Icons.dynamic_form, size: 24),
+                        label: const Text('Form Builder', style: TextStyle(fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
                       ),
                     ),
                   ],

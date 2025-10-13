@@ -16,6 +16,8 @@ dependencies:
   # HTTP & API
   http: ^1.2.0
   dio: ^5.4.0
+  cookie_jar: ^4.0.8
+  dio_cookie_manager: ^3.1.1
   
   # State Management
   provider: ^6.1.1
@@ -31,10 +33,17 @@ dependencies:
   
   # Utils
   uuid: ^4.3.3
-  intl: ^0.19.0
+  intl: any
   
   # Web specific
   url_strategy: ^0.2.0
+  
+  # Image picker for header logo
+  image_picker: ^1.0.7
+  
+  # Rich Text Editor - Latest stable version
+  flutter_quill: ^11.4.2
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:

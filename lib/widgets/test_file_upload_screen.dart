@@ -34,7 +34,7 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            
+
             // Test the enhanced file upload widget
             EnhancedFileUploadWidget(
               label: 'Test Document Upload',
@@ -66,9 +66,9 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
               showPreview: true,
               enabled: true,
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Status information
             Container(
               padding: const EdgeInsets.all(16),
@@ -88,7 +88,7 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   Row(
                     children: [
                       const Text('Selected File: ', style: TextStyle(fontWeight: FontWeight.w500)),
@@ -102,7 +102,7 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
                       ),
                     ],
                   ),
-                  
+
                   if (_selectedFile != null) ...[
                     const SizedBox(height: 8),
                     Row(
@@ -125,10 +125,10 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
-                  
+
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -155,30 +155,32 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Test buttons
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: _selectedFile != null ? () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('File ready for upload: ${_selectedFile!.path.split('/').last}'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  } : null,
+                  onPressed: _selectedFile != null
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('File ready for upload: ${_selectedFile!.path.split('/').last}'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[600],
                     foregroundColor: Colors.white,
                   ),
                   child: const Text('Simulate Upload'),
                 ),
-                
+
                 const SizedBox(width: 16),
-                
+
                 OutlinedButton(
                   onPressed: () {
                     setState(() {
@@ -190,9 +192,9 @@ class _TestFileUploadScreenState extends State<TestFileUploadScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Instructions
             Container(
               padding: const EdgeInsets.all(16),

@@ -141,6 +141,9 @@ class _InteractiveFieldWrapperState extends State<InteractiveFieldWrapper> {
                     : EdgeInsets.zero,
                 child: IgnorePointer(
                   // Prevent field interactions in builder mode
+                  // EXCEPT for richText fields which need to be editable
+                  ignoring: widget.field.type != form_models.FieldType.richText &&
+                           widget.field.type != form_models.FieldType.table,
                   child: widget.child,
                 ),
               ),

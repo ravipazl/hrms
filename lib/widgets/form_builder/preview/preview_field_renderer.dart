@@ -12,6 +12,7 @@ import 'field_renderers/preview_date_field.dart';
 import 'field_renderers/preview_time_field.dart';
 import 'field_renderers/preview_file_field.dart';
 import 'field_renderers/preview_signature_field.dart';
+import 'field_renderers/preview_rich_text_field.dart';
 
 /// Preview Field Renderer - Routes to appropriate field renderer based on type
 /// Matches React's Field.jsx component
@@ -176,30 +177,11 @@ class PreviewFieldRenderer extends StatelessWidget {
         );
 
       case form_models.FieldType.richText:
-        // TODO: Implement rich text renderer
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                field.label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Rich Text Editor (Coming Soon)',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-              ),
-            ],
-          ),
+        return PreviewRichTextField(
+          field: field,
+          value: value,
+          onChanged: onChanged,
+          hasError: error != null && error!.isNotEmpty,
         );
 
       default:

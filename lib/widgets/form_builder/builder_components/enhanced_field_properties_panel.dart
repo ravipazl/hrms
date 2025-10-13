@@ -1233,21 +1233,40 @@ class EnhancedFieldPropertiesPanel extends StatelessWidget {
         // Toolbar Configuration
         const Text('Toolbar Configuration', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          decoration: const InputDecoration(
-            labelText: 'Toolbar Preset',
-            border: OutlineInputBorder(),
-            helperText: 'Controls available formatting options',
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            border: Border.all(color: Colors.blue[200]!),
+            borderRadius: BorderRadius.circular(8),
           ),
-          initialValue: field.props['toolbar']?.toString() ?? 'standard',
-          items: const [
-            DropdownMenuItem(value: 'minimal', child: Text('Minimal - Basic formatting only')),
-            DropdownMenuItem(value: 'standard', child: Text('Standard - Common formatting + links')),
-            DropdownMenuItem(value: 'full', child: Text('Full - All features + interactive fields')),
-          ],
-          onChanged: (value) {
-            provider.updateField(field.id, {'toolbar': value});
-          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text(
+                    'Toolbar Configuration',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'The rich text toolbar is pre-configured with formatting options. Edit content directly in the field editor.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
         ),
 
         const Divider(height: 32),

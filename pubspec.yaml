@@ -31,15 +31,17 @@ dependencies:
   
   # Utils
   uuid: ^4.3.3
-  intl: ^0.19.0
+  intl: any
   
   # Web specific
   url_strategy: ^0.2.0
   
   # Image picker for header logo
   image_picker: ^1.0.7
-
-  file_picker: ^6.1.0
+  
+  # Rich Text Editor - Latest stable version
+  flutter_quill: ^11.4.2
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:

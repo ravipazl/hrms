@@ -3,6 +3,9 @@ import '../../../models/form_builder/form_field.dart' as form_models;
 import 'interactive_field_wrapper.dart';
 import 'interactive_table_wrapper.dart';
 import '../field_renderers/dynamic_table_field_renderer.dart';
+import 'rich_text_editor_widget.dart';
+import '../../../providers/form_builder_provider.dart';
+import 'package:provider/provider.dart';
 
 class CanvasFieldRenderer {
   static Widget renderField(form_models.FormField field) {
@@ -57,7 +60,10 @@ class CanvasFieldRenderer {
           child: fieldWidget,
         );
       case form_models.FieldType.richText:
-        fieldWidget = _buildRichTextField(field);
+        // Use the actual rich text editor widget
+        return _buildRichTextEditor(field, index);
+      case form_models.FieldType.signature:
+        fieldWidget = _buildSignatureField(field);
         break;
       default:
         fieldWidget = _buildTextField(field);
@@ -329,7 +335,40 @@ class CanvasFieldRenderer {
     );
   }
 
-  static Widget _buildRichTextField(form_models.FormField field) {
+  static Widget _buildRichTextEditor(form_models.FormField field, int index) {
+    return Builder(
+      builder: (context) {
+        final provider = Provider.of<FormBuilderProvider>(context, listen: false);
+        
+        return InteractiveFieldWrapper(
+          field: field,
+          index: index,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (field.label.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Text(field.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    if (field.required) const Text(' *', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              RichTextEditorWidget(
+                field: field,
+                onFieldUpdate: (fieldId, updates) {
+                  provider.updateField(fieldId, updates);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _buildSignatureField(form_models.FormField field) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -343,36 +382,13 @@ class CanvasFieldRenderer {
           const SizedBox(height: 8),
         ],
         Container(
+          height: 200,
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey[300]!),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-                ),
-                child: Wrap(
-                  spacing: 4,
-                  children: [
-                    IconButton(icon: const Icon(Icons.format_bold, size: 18), onPressed: () {}, padding: const EdgeInsets.all(4), constraints: const BoxConstraints()),
-                    IconButton(icon: const Icon(Icons.format_italic, size: 18), onPressed: () {}, padding: const EdgeInsets.all(4), constraints: const BoxConstraints()),
-                    IconButton(icon: const Icon(Icons.format_underline, size: 18), onPressed: () {}, padding: const EdgeInsets.all(4), constraints: const BoxConstraints()),
-                  ],
-                ),
-              ),
-              TextField(
-                decoration: InputDecoration(
-                  hintText: field.props['placeholder'] ?? 'Start typing...',
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-                maxLines: 5,
-              ),
-            ],
+          child: Center(
+            child: Text('Signature Pad', style: TextStyle(color: Colors.grey[600])),
           ),
         ),
       ],

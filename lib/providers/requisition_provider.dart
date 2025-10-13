@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:hrms/models/requisition.dart';
+import '../models/file_preview.dart';
 import '../services/requisition_api_service.dart';
 
 class RequisitionProvider with ChangeNotifier {
@@ -216,8 +217,11 @@ class RequisitionProvider with ChangeNotifier {
     }
   }
 
-  /// Create new requisition
-  Future<bool> createRequisition(Requisition requisition, {File? jobDocument}) async {
+  /// Create new requisition with multiple files support
+  Future<bool> createRequisition(
+    Requisition requisition, {
+    List<FilePreview>? jobDocuments,
+  }) async {
     _saving = true;
     _error = null;
     notifyListeners();
@@ -232,9 +236,18 @@ class RequisitionProvider with ChangeNotifier {
         return false;
       }
 
+      print('\n' + '='*80);
+      print('📦 CREATE REQUISITION - DEBUG');
+      print('='*80);
+      print('Requisition object justificationText: "${requisition.justificationText}"');
+      print('='*80);
+      print('');
+
+      print('📤 Creating requisition with ${jobDocuments?.length ?? 0} file(s)');
+      
       final createdRequisition = await _apiService.createRequisition(
         requisition,
-        jobDocument: jobDocument,
+        jobDocuments: jobDocuments,
       );
       
       // Add to local list
@@ -254,8 +267,13 @@ class RequisitionProvider with ChangeNotifier {
     }
   }
 
-  /// Update requisition
-  Future<bool> updateRequisition(int id, Requisition requisition, {File? jobDocument}) async {
+  /// Update requisition with multiple files support
+  Future<bool> updateRequisition(
+    int id, 
+    Requisition requisition, {
+    List<FilePreview>? jobDocuments,
+    List<FilePreview>? existingFiles,
+  }) async {
     _saving = true;
     _error = null;
     notifyListeners();
@@ -270,10 +288,15 @@ class RequisitionProvider with ChangeNotifier {
         return false;
       }
 
+      print('📤 Updating requisition with:');
+      print('   - New files: ${jobDocuments?.length ?? 0}');
+      print('   - Existing files: ${existingFiles?.length ?? 0}');
+      
       final updatedRequisition = await _apiService.updateRequisition(
         id,
         requisition,
-        jobDocument: jobDocument,
+        jobDocuments: jobDocuments,
+        existingFiles: existingFiles,
       );
       
       // Update in local list

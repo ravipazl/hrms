@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:hrms/models/requisition.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../models/file_preview.dart';
 import 'api_config.dart';
 
 class RequisitionApiService {
@@ -187,17 +189,39 @@ class RequisitionApiService {
     );
   }
 
-  /// Create new requisition
-  Future<Requisition> createRequisition(Requisition requisition, {File? jobDocument}) async {
+  /// Create new requisition with multiple files support
+  Future<Requisition> createRequisition(
+    Requisition requisition, {
+    List<FilePreview>? jobDocuments,
+  }) async {
     try {
+      print('\n' + '='*80);
+      print('📝 API SERVICE - CREATE REQUISITION');
+      print('='*80);
+      print('Requisition.justificationText: "${requisition.justificationText}"');
+      print('='*80);
+      
       print('📝 Creating requisition...');
+      print('📤 Files to upload: ${jobDocuments?.length ?? 0}');
       
       final mappedData = _mapFormDataToBackend(requisition);
-      print('📤 Mapped data structure: $mappedData');
+      print('\n📦 MAPPED DATA TO SEND:');
+      print('='*80);
+      mappedData.forEach((key, value) {
+        if (key == 'preference_justification') {
+          print('✨ $key: "$value"');
+        } else if (value is List || value is Map) {
+          print('$key: ${value.runtimeType}');
+        } else {
+          print('$key: $value');
+        }
+      });
+      print('='*80);
+      print('');
 
-      if (jobDocument != null) {
+      if (jobDocuments != null && jobDocuments.isNotEmpty) {
         // File upload with MultipartRequest
-        print('📎 File upload detected, using MultipartRequest');
+        print('📎 Multiple files detected, using MultipartRequest');
         
         final uri = Uri.parse('${ApiConfig.baseUrl}/requisition/');
         final request = http.MultipartRequest('POST', uri);
@@ -207,7 +231,7 @@ class RequisitionApiService {
         
         // Add fields
         mappedData.forEach((key, value) {
-          if (key != 'job_document' && value != null) {
+          if (value != null) {
             if (value is List || value is Map) {
               request.fields[key] = jsonEncode(value);
             } else {
@@ -216,24 +240,48 @@ class RequisitionApiService {
           }
         });
         
-        // Add file
-        request.files.add(await http.MultipartFile.fromPath(
-          'job_document',
-          jobDocument.path,
-        ));
+        // Add multiple files with indexed field names (job_document_0, job_document_1, etc.)
+        for (var i = 0; i < jobDocuments.length; i++) {
+          final filePreview = jobDocuments[i];
+          if (filePreview.isNew) {
+            if (kIsWeb && filePreview.platformFile?.bytes != null) {
+              // Web platform
+              request.files.add(
+                http.MultipartFile.fromBytes(
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
+                  filePreview.platformFile!.bytes!,
+                  filename: filePreview.name,
+                ),
+              );
+              print('🔌 Added web file ${i + 1}: ${filePreview.name} as job_document_$i');
+            } else if (!kIsWeb && filePreview.file != null) {
+              // Mobile platform
+              request.files.add(
+                await http.MultipartFile.fromPath(
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
+                  filePreview.file!.path,
+                  filename: filePreview.name,
+                ),
+              );
+              print('🔌 Added mobile file ${i + 1}: ${filePreview.name} as job_document_$i');
+            }
+          }
+        }
         
+        print('🚀 Sending multipart request with ${request.files.length} file(s)');
         final streamedResponse = await request.send();
         final response = await http.Response.fromStream(streamedResponse);
         
         if (response.statusCode == 200 || response.statusCode == 201) {
-          print('✅ Requisition created with file upload');
+          print('✅ Requisition created with ${request.files.length} file(s)');
           return Requisition.fromJson(json.decode(response.body));
         } else {
+          print('❌ Failed: ${response.statusCode} - ${response.body}');
           throw Exception('Failed to create requisition: ${response.statusCode}');
         }
       } else {
-        // Regular JSON request
-        print('🚀 Sending JSON data to API');
+        // Regular JSON request (no files)
+        print('🚀 Sending JSON data to API (no files)');
         
         final response = await http.post(
           Uri.parse('${ApiConfig.baseUrl}/requisition/'),
@@ -245,16 +293,9 @@ class RequisitionApiService {
         
         if (response.statusCode == 200 || response.statusCode == 201) {
           print('✅ Requisition created successfully');
-          print('📥 Response data: ${response.body}');
-          
-          try {
-            return Requisition.fromJson(json.decode(response.body));
-          } catch (parseError) {
-            print('❌ Error parsing response: $parseError');
-            print('📥 Raw response: ${response.body}');
-            rethrow;
-          }
+          return Requisition.fromJson(json.decode(response.body));
         } else {
+          print('❌ Failed: ${response.statusCode} - ${response.body}');
           throw Exception('Failed to create requisition: ${response.statusCode}');
         }
       }
@@ -264,17 +305,24 @@ class RequisitionApiService {
     }
   }
 
-  /// Update requisition
-  Future<Requisition> updateRequisition(int id, Requisition requisition, {File? jobDocument}) async {
+  /// Update requisition with multiple files support
+  Future<Requisition> updateRequisition(
+    int id, 
+    Requisition requisition, {
+    List<FilePreview>? jobDocuments,
+    List<FilePreview>? existingFiles,
+  }) async {
     try {
       print('📝 Updating requisition $id');
+      print('📤 New files: ${jobDocuments?.length ?? 0}');
+      print('📤 Existing files: ${existingFiles?.length ?? 0}');
       
       final mappedData = _mapFormDataToBackend(requisition);
       print('📤 Mapped data for update: $mappedData');
 
-      if (jobDocument != null) {
+      if (jobDocuments != null && jobDocuments.isNotEmpty) {
         // File upload with MultipartRequest
-        print('📎 File upload detected for update, using MultipartRequest');
+        print('📎 Files detected for update, using MultipartRequest');
         
         final uri = Uri.parse('${ApiConfig.baseUrl}/requisition/$id/');
         final request = http.MultipartRequest('PUT', uri);
@@ -284,7 +332,7 @@ class RequisitionApiService {
         
         // Add fields
         mappedData.forEach((key, value) {
-          if (key != 'job_document' && value != null) {
+          if (value != null) {
             if (value is List || value is Map) {
               request.fields[key] = jsonEncode(value);
             } else {
@@ -293,24 +341,62 @@ class RequisitionApiService {
           }
         });
         
-        // Add file
-        request.files.add(await http.MultipartFile.fromPath(
-          'jobDocument',
-          jobDocument.path,
-        ));
+        // Add existing files metadata
+        if (existingFiles != null && existingFiles.isNotEmpty) {
+          request.fields['existing_files'] = jsonEncode(
+            existingFiles.map((f) => f.toJson()).toList()
+          );
+          print('📦 Sent ${existingFiles.length} existing file(s) metadata');
+        }
         
+        // Add new files with indexed field names (job_document_0, job_document_1, etc.)
+        for (var i = 0; i < jobDocuments.length; i++) {
+          final filePreview = jobDocuments[i];
+          if (filePreview.isNew) {
+            if (kIsWeb && filePreview.platformFile?.bytes != null) {
+              // Web platform
+              request.files.add(
+                http.MultipartFile.fromBytes(
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
+                  filePreview.platformFile!.bytes!,
+                  filename: filePreview.name,
+                ),
+              );
+              print('🔌 Added web file ${i + 1}: ${filePreview.name} as job_document_$i');
+            } else if (!kIsWeb && filePreview.file != null) {
+              // Mobile platform
+              request.files.add(
+                await http.MultipartFile.fromPath(
+                  'job_document_$i', // ✅ FIXED: Use indexed field name
+                  filePreview.file!.path,
+                  filename: filePreview.name,
+                ),
+              );
+              print('🔌 Added mobile file ${i + 1}: ${filePreview.name} as job_document_$i');
+            }
+          }
+        }
+        
+        print('🚀 Sending multipart update with ${request.files.length} new file(s)');
         final streamedResponse = await request.send();
         final response = await http.Response.fromStream(streamedResponse);
         
         if (response.statusCode == 200) {
-          print('✅ Requisition updated with file');
+          print('✅ Requisition updated with files');
           return Requisition.fromJson(json.decode(response.body));
         } else {
+          print('❌ Failed: ${response.statusCode} - ${response.body}');
           throw Exception('Failed to update requisition: ${response.statusCode}');
         }
       } else {
-        // Regular JSON request
+        // Regular JSON request (no new files)
         print('🚀 Sending JSON update data to API');
+        
+        // Add existing files metadata if provided
+        if (existingFiles != null && existingFiles.isNotEmpty) {
+          mappedData['existing_files'] = existingFiles.map((f) => f.toJson()).toList();
+          print('📦 Including ${existingFiles.length} existing file(s) in JSON');
+        }
         
         final response = await http.put(
           Uri.parse('${ApiConfig.baseUrl}/requisition/$id/'),
@@ -322,16 +408,9 @@ class RequisitionApiService {
         
         if (response.statusCode == 200) {
           print('✅ Requisition updated successfully');
-          print('📥 Response data: ${response.body}');
-          
-          try {
-            return Requisition.fromJson(json.decode(response.body));
-          } catch (parseError) {
-            print('❌ Error parsing response: $parseError');
-            print('📥 Raw response: ${response.body}');
-            rethrow;
-          }
+          return Requisition.fromJson(json.decode(response.body));
         } else {
+          print('❌ Failed: ${response.statusCode} - ${response.body}');
           throw Exception('Failed to update requisition: ${response.statusCode}');
         }
       }

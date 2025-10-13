@@ -1,5 +1,7 @@
 // lib/models/requisition/requisition.dart
 
+import 'dart:convert';
+
 /// Main Requisition Model
 class Requisition {
   final int? id;
@@ -10,8 +12,10 @@ class Requisition {
   final String? jobDescription;
   final String? jobDocument;
   final String? jobDocumentUrl;
+  final List<Map<String, dynamic>>? jobDocuments; // Multiple documents as JSON
   final String jobDescriptionType; // 'text' or 'upload'
   final String? preferredGender;
+  final String? preferredGenderDisplay; // Display value for gender
   final String? preferredAgeGroup;
   final String qualification;
   final String experience;
@@ -34,8 +38,10 @@ class Requisition {
     this.jobDescription,
     this.jobDocument,
     this.jobDocumentUrl,
+    this.jobDocuments,
     this.jobDescriptionType = 'text',
     this.preferredGender,
+    this.preferredGenderDisplay,
     this.preferredAgeGroup,
     required this.qualification,
     required this.experience,
@@ -61,12 +67,10 @@ class Requisition {
   }
 
   /// Extract status from API response (handles both string and object)
-  /// FIXED: Keep original capitalization from API (Approved, Rejected, Hold, Pending)
   static String _extractStatus(dynamic status) {
     if (status == null) return 'Pending';
     if (status is String) return status;
     if (status is Map && status['reference_value'] != null) {
-      // FIXED: Return original capitalization, don't convert to lowercase
       return status['reference_value'].toString();
     }
     return 'Pending';
@@ -92,44 +96,73 @@ class Requisition {
     return desiredSkills.isNotEmpty ? desiredSkills.join(', ') : null;
   }
 
+  /// Helper method to construct complete URLs from relative paths
+  static String? _constructCompleteUrlIfNeeded(String? urlOrPath) {
+    if (urlOrPath == null || urlOrPath.isEmpty) {
+      return null;
+    }
+    
+    if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+      return urlOrPath;
+    }
+    
+    const String baseUrl = 'http://127.0.0.1:8000';
+    String path = urlOrPath.startsWith('/') ? urlOrPath : '/$urlOrPath';
+    final completeUrl = '$baseUrl$path';
+    print('🔗 Constructed complete URL: $completeUrl (from: $urlOrPath)');
+    return completeUrl;
+  }
+
   factory Requisition.fromJson(Map<String, dynamic> json) {
     print('📝 Parsing requisition from Django API response...');
-    print('📝 Available keys: ${json.keys.toList()}');
     
-    // Extract skills data if available
+    List<Map<String, dynamic>>? documentsData;
+    if (json['job_documents'] != null) {
+      if (json['job_documents'] is List) {
+        documentsData = (json['job_documents'] as List)
+            .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+            .where((doc) => doc.isNotEmpty)
+            .toList();
+      } else if (json['job_documents'] is String) {
+        try {
+          final parsed = jsonDecode(json['job_documents']);
+          if (parsed is List) {
+            documentsData = (parsed as List)
+                .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+                .where((doc) => doc.isNotEmpty)
+                .toList();
+          }
+        } catch (e) {
+          print('⚠️ Could not parse job_documents JSON: $e');
+        }
+      }
+    }
+    
     final skillsData = json['skills'] as List? ?? [];
     final essentialSkills = _extractEssentialSkills(skillsData);
     final desiredSkills = _extractDesiredSkills(skillsData);
     
-    print('📝 Essential skills extracted: $essentialSkills');
-    print('📝 Desired skills extracted: $desiredSkills');
-    
-    // Extract positions data if available
     final positionsData = json['positions'] as List? ?? [];
-    print('📝 Positions data length: ${positionsData.length}');
     
-    return Requisition(
+    final requisition = Requisition(
       id: json['id'],
       requisitionId: json['requisition_id'],
-      // Handle both frontend and backend field names
       jobPosition: json['jobPosition'] ?? json['job_position'] ?? '',
       department: json['department']?.toString() ?? '',
       departmentName: json['department_display'] ?? json['department_name'],
-      // Handle both frontend and backend field names
       jobDescription: json['jobDescription'] ?? json['job_description'],
-      jobDocument: json['job_document'],
-      jobDocumentUrl: json['job_document_url'],
+      jobDocument: _constructCompleteUrlIfNeeded(json['job_document']?.toString()),
+      jobDocumentUrl: _constructCompleteUrlIfNeeded(json['job_document_url']?.toString()),
+      jobDocuments: documentsData,
       jobDescriptionType: json['job_description_type'] ?? 'text',
       preferredGender: json['preferred_gender']?.toString(),
-      // Handle both frontend and backend field names
+      preferredGenderDisplay: json['preferred_gender_display'], // NEW: Display value
       preferredAgeGroup: json['preferredAgeGroup'] ?? json['preferred_age_group']?.toString(),
       qualification: json['qualification'] ?? '',
       experience: json['experience']?.toString() ?? '',
-      // Handle both frontend and backend field names
       justificationText: json['justificationText'] ?? json['preference_justification'],
       essentialSkills: essentialSkills,
       desiredSkills: desiredSkills,
-      // Handle status object from API response
       status: _extractStatus(json['status']),
       positions: positionsData
           .map((pos) => RequisitionPosition.fromJson(pos))
@@ -137,17 +170,16 @@ class Requisition {
       skills: skillsData
           .map((skill) => RequisitionSkill.fromJson(skill))
           .toList(),
-      // Handle both frontend and backend field names
       mentionThreeMonths: _parseMapField(json['mentionThreeMonths'] ?? json['phased_months']),
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       updatedAt: json['modified_at'] != null
           ? DateTime.parse(json['modified_at'])
           : json['updated_at'] != null
               ? DateTime.parse(json['updated_at'])
               : null,
     );
+    
+    return requisition;
   }
 
   Map<String, dynamic> toJson() {
@@ -182,8 +214,10 @@ class Requisition {
     String? jobDescription,
     String? jobDocument,
     String? jobDocumentUrl,
+    List<Map<String, dynamic>>? jobDocuments,
     String? jobDescriptionType,
     String? preferredGender,
+    String? preferredGenderDisplay,
     String? preferredAgeGroup,
     String? qualification,
     String? experience,
@@ -206,8 +240,10 @@ class Requisition {
       jobDescription: jobDescription ?? this.jobDescription,
       jobDocument: jobDocument ?? this.jobDocument,
       jobDocumentUrl: jobDocumentUrl ?? this.jobDocumentUrl,
+      jobDocuments: jobDocuments ?? this.jobDocuments,
       jobDescriptionType: jobDescriptionType ?? this.jobDescriptionType,
       preferredGender: preferredGender ?? this.preferredGender,
+      preferredGenderDisplay: preferredGenderDisplay ?? this.preferredGenderDisplay,
       preferredAgeGroup: preferredAgeGroup ?? this.preferredAgeGroup,
       qualification: qualification ?? this.qualification,
       experience: experience ?? this.experience,
@@ -228,11 +264,15 @@ class Requisition {
 class RequisitionPosition {
   final int? id;
   final String typeRequisition;
+  final String? typeRequisitionDisplay; // NEW: Display value
   final String? requirementsRequisitionNewhire;
+  final String? requirementsRequisitionNewhireDisplay; // NEW: Display value
   final String? requirementsRequisitionReplacement;
+  final String? requirementsRequisitionReplacementDisplay; // NEW: Display value
   final int requisitionQuantity;
   final String? vacancyToBeFilled;
   final String? employmentType;
+  final String? employmentTypeDisplay; // NEW: Display value
   final String? justificationText;
   final String? employeeName;
   final String? employeeNo;
@@ -242,11 +282,15 @@ class RequisitionPosition {
   RequisitionPosition({
     this.id,
     required this.typeRequisition,
+    this.typeRequisitionDisplay,
     this.requirementsRequisitionNewhire,
+    this.requirementsRequisitionNewhireDisplay,
     this.requirementsRequisitionReplacement,
+    this.requirementsRequisitionReplacementDisplay,
     required this.requisitionQuantity,
     this.vacancyToBeFilled,
     this.employmentType,
+    this.employmentTypeDisplay,
     this.justificationText,
     this.employeeName,
     this.employeeNo,
@@ -258,11 +302,15 @@ class RequisitionPosition {
     return RequisitionPosition(
       id: json['id'],
       typeRequisition: json['type_requisition']?.toString() ?? '1',
+      typeRequisitionDisplay: json['type_requisition_display'],
       requirementsRequisitionNewhire: json['requirements_requisition_newhire']?.toString(),
+      requirementsRequisitionNewhireDisplay: json['requirements_requisition_newhire_display'],
       requirementsRequisitionReplacement: json['requirements_requisition_replacement']?.toString(),
+      requirementsRequisitionReplacementDisplay: json['requirements_requisition_replacement_display'],
       requisitionQuantity: json['requisition_quantity'] ?? 1,
       vacancyToBeFilled: json['vacancy_to_be_filled_on'],
       employmentType: json['employment_type']?.toString(),
+      employmentTypeDisplay: json['employment_type_display'],
       justificationText: json['justification_text'],
       employeeName: json['employee_name'],
       employeeNo: json['employee_no'],
@@ -290,11 +338,15 @@ class RequisitionPosition {
   RequisitionPosition copyWith({
     int? id,
     String? typeRequisition,
+    String? typeRequisitionDisplay,
     String? requirementsRequisitionNewhire,
+    String? requirementsRequisitionNewhireDisplay,
     String? requirementsRequisitionReplacement,
+    String? requirementsRequisitionReplacementDisplay,
     int? requisitionQuantity,
     String? vacancyToBeFilled,
     String? employmentType,
+    String? employmentTypeDisplay,
     String? justificationText,
     String? employeeName,
     String? employeeNo,
@@ -304,11 +356,15 @@ class RequisitionPosition {
     return RequisitionPosition(
       id: id ?? this.id,
       typeRequisition: typeRequisition ?? this.typeRequisition,
+      typeRequisitionDisplay: typeRequisitionDisplay ?? this.typeRequisitionDisplay,
       requirementsRequisitionNewhire: requirementsRequisitionNewhire ?? this.requirementsRequisitionNewhire,
+      requirementsRequisitionNewhireDisplay: requirementsRequisitionNewhireDisplay ?? this.requirementsRequisitionNewhireDisplay,
       requirementsRequisitionReplacement: requirementsRequisitionReplacement ?? this.requirementsRequisitionReplacement,
+      requirementsRequisitionReplacementDisplay: requirementsRequisitionReplacementDisplay ?? this.requirementsRequisitionReplacementDisplay,
       requisitionQuantity: requisitionQuantity ?? this.requisitionQuantity,
       vacancyToBeFilled: vacancyToBeFilled ?? this.vacancyToBeFilled,
       employmentType: employmentType ?? this.employmentType,
+      employmentTypeDisplay: employmentTypeDisplay ?? this.employmentTypeDisplay,
       justificationText: justificationText ?? this.justificationText,
       employeeName: employeeName ?? this.employeeName,
       employeeNo: employeeNo ?? this.employeeNo,

@@ -1,12 +1,16 @@
 // lib/screens/requisition_form_screen.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hrms/models/requisition.dart';
 import 'dart:html' as html;
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/requisition_provider.dart';
+import '../widgets/enhanced_file_upload_widget.dart';
+import '../widgets/multi_file_upload_widget.dart';
+import '../models/file_preview.dart';
 
 class RequisitionFormScreen extends StatefulWidget {
   final Requisition? requisition;
@@ -42,8 +46,8 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   String? _selectedDepartment;
   String? _selectedGender;
   String _jobDescriptionType = 'text';
-  File? _selectedFile;
-  String? _existingFileUrl;
+  // Multi-file upload support
+  List<FilePreview> _filesPreviews = [];
   
   // Position cards
   List<RequisitionPositionCard> _positionCards = [];
@@ -86,12 +90,46 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
   void _loadExistingData() {
     if (widget.requisition == null) {
-      
+      print('❌ No requisition data to load');
       return;
     }
     
     final req = widget.requisition!;
-   
+    print('\n' + '='*80);
+    print('📋 LOADING EXISTING REQUISITION DATA FOR EDIT MODE');
+    print('='*80);
+    print('🆔 Requisition ID: ${req.id}');
+    print('📄 Job Position: ${req.jobPosition}');
+    print('\n🔍 CHECKING ALL FILE-RELATED FIELDS:');
+    print('-'*80);
+    
+    // Log ALL the raw data we have
+    print('1️⃣ jobDocumentUrl field:');
+    print('   Type: ${req.jobDocumentUrl.runtimeType}');
+    print('   Value: "${req.jobDocumentUrl}"');
+    print('   isEmpty: ${req.jobDocumentUrl?.isEmpty}');
+    print('   isNotEmpty: ${req.jobDocumentUrl?.isNotEmpty}');
+    
+    print('\n2️⃣ jobDocument field:');
+    print('   Type: ${req.jobDocument.runtimeType}');
+    print('   Value: "${req.jobDocument}"');
+    print('   isEmpty: ${req.jobDocument?.isEmpty}');
+    print('   isNotEmpty: ${req.jobDocument?.isNotEmpty}');
+    
+    print('\n3️⃣ jobDescription field:');
+    print('   Type: ${req.jobDescription.runtimeType}');
+    if (req.jobDescription != null && req.jobDescription!.length > 100) {
+      print('   Value: "${req.jobDescription!.substring(0, 100)}..."');
+    } else {
+      print('   Value: "${req.jobDescription}"');
+    }
+    print('   isEmpty: ${req.jobDescription?.isEmpty}');
+    
+    print('\n4️⃣ jobDescriptionType field:');
+    print('   Type: ${req.jobDescriptionType.runtimeType}');
+    print('   Value: "${req.jobDescriptionType}"');
+    
+    print('-'*80);
     
     setState(() {
       // Set basic fields
@@ -107,20 +145,134 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       // Set dropdown values
       _selectedDepartment = req.department;
       _selectedGender = req.preferredGender;
-      _jobDescriptionType = req.jobDescriptionType ?? 'text';
-      _existingFileUrl = req.jobDocumentUrl;
+      
+      // ENHANCED: Properly handle job description type and existing files
+      // Load existing files from server (supports multiple files)
+      _filesPreviews.clear();
+      
+      print('\n🔄 STARTING FILE LOADING PROCESS...');
+      print('-'*80);
+      
+      bool hasFiles = false;
+      
+      // Method 1: Check jobDocuments array (multiple files - PREFERRED)
+      if (req.jobDocuments != null && req.jobDocuments!.isNotEmpty) {
+        print('✅ Method 1: Found jobDocuments array');
+        print('   Count: ${req.jobDocuments!.length} files');
+        
+        try {
+          for (var i = 0; i < req.jobDocuments!.length; i++) {
+            final docData = req.jobDocuments![i];
+            print('   📎 Processing file ${i + 1}:');
+            print('      - Data: $docData');
+            
+            final filePreview = FilePreview.fromServer(docData);
+            _filesPreviews.add(filePreview);
+            print('      ✅ Added: ${filePreview.name}');
+          }
+          
+          hasFiles = _filesPreviews.isNotEmpty;
+          print('   ✅ Successfully loaded ${_filesPreviews.length} file(s) from jobDocuments');
+          
+          // CRITICAL: Verify files were actually added
+          print('\n📋 VERIFICATION - Files in _filesPreviews after loading:');
+          for (var i = 0; i < _filesPreviews.length; i++) {
+            print('   ${i + 1}. ${_filesPreviews[i].name} (${_filesPreviews[i].formattedSize})');
+          }
+          print('');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocuments: $e');
+        }
+      } else {
+        print('⏭️ Method 1 SKIPPED: jobDocuments is null or empty');
+      }
+      
+      // Method 2: Check jobDocumentUrl field (single file - backward compatibility)
+      if (!hasFiles && req.jobDocumentUrl != null && req.jobDocumentUrl!.isNotEmpty) {
+        print('✅ Method 2: Found jobDocumentUrl field (single file)');
+        print('   Value: ${req.jobDocumentUrl}');
+        
+        try {
+          final url = req.jobDocumentUrl!;
+          final fileName = url.split('/').last.split('?').first;
+          
+          _filesPreviews.add(FilePreview.fromServer({
+            'name': fileName.isNotEmpty ? fileName : 'Document',
+            'url': url,
+            'size': 0,
+          }));
+          
+          hasFiles = true;
+          print('   ✅ Successfully created FilePreview from jobDocumentUrl');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocumentUrl: $e');
+        }
+      } else if (!hasFiles) {
+        print('⏭️ Method 2 SKIPPED: jobDocumentUrl is null or empty');
+      }
+      
+      // Method 3: Check jobDocument field (single file path - legacy support)
+      if (!hasFiles && req.jobDocument != null && req.jobDocument!.isNotEmpty) {
+        print('✅ Method 3: Found jobDocument field (single file path)');
+        print('   Value: ${req.jobDocument}');
+        
+        try {
+          final path = req.jobDocument!;
+          final fileName = path.split('/').last;
+          
+          _filesPreviews.add(FilePreview.fromServer({
+            'name': fileName.isNotEmpty ? fileName : 'Document',
+            'url': path, // Will be constructed in FilePreview.fromServer
+            'path': path,
+            'size': 0,
+          }));
+          
+          hasFiles = true;
+          print('   ✅ Successfully created FilePreview from jobDocument');
+        } catch (e) {
+          print('   ❌ Error parsing jobDocument: $e');
+        }
+      } else if (!hasFiles) {
+        print('⏭️ Method 3 SKIPPED: jobDocument is null or empty');
+      }
+      
+      print('-'*80);
+      
+      // Set job description type based on what we found
+      if (hasFiles && _filesPreviews.isNotEmpty) {
+        _jobDescriptionType = 'upload';
+        print('\n✅ RESULT: Set mode to "upload"');
+        print('   📊 Files loaded: ${_filesPreviews.length}');
+        print('   📋 File list:');
+        for (var i = 0; i < _filesPreviews.length; i++) {
+          print('      ${i + 1}. ${_filesPreviews[i].name}');
+          print('         URL: ${_filesPreviews[i].url}');
+        }
+      } else if (req.jobDescription != null && req.jobDescription!.trim().isNotEmpty) {
+        _jobDescriptionType = 'text';
+        print('\n📝 RESULT: Set mode to "text"');
+        print('   Reason: Has text description, no files found');
+      } else {
+        // Default to text mode if nothing found
+        _jobDescriptionType = 'text';
+        print('\n⚠️ RESULT: Defaulting to "text" mode');
+        print('   Reason: No files AND no text description found');
+      }
+      
+      print('='*80);
+      print('\n');
       
       // Load position cards
       if (req.positions.isNotEmpty) {
         _positionCards = req.positions.map((pos) => RequisitionPositionCard.fromPosition(pos)).toList();
-        
+        print('✅ Loaded ${_positionCards.length} position cards');
       } else {
         _addDefaultPositionCard();
-        
+        print('➕ Added default position card');
       }
     });
     
-   
+    print('✅ Existing data loaded successfully in edit mode\n');
   }
 
   void _addDefaultPositionCard() {
@@ -136,54 +288,30 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   Widget _buildLogo() {
-    // Try to load image logo first, fallback to triangle if not found
-    return FutureBuilder<bool>(
-      future: _checkIfImageExists(),
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data == true) {
-          // Show image logo
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              _getLogoPath(),
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                // Fallback to triangle if image fails to load
-                return CustomPaint(
-                  painter: TrianglePainter(),
-                );
-              },
-            ),
+    // Load company logo from assets
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        'assets/images/logo.png',
+        width: 40,
+        height: 35,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Show a placeholder icon if logo is not found
+          return Icon(
+            Icons.business,
+            size: 35,
+            color: Colors.blue[600],
           );
-        } else {
-          // Show triangle logo as fallback
-          return CustomPaint(
-            painter: TrianglePainter(),
-          );
-        }
-      },
+        },
+      ),
     );
-  }
-
-  Future<bool> _checkIfImageExists() async {
-    try {
-      final logoPath = _getLogoPath();
-      await rootBundle.load(logoPath);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  String _getLogoPath() {
-    // Return the primary logo path
-    return 'assets/images/logo.png';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF5F5F5), // Light gray background to match screenshot
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit Requisition' : 'Create New Requisition'),
         backgroundColor: Colors.white,
@@ -237,38 +365,422 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
             padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header (now scrollable)
-                  _buildHeader(),
-                  
-                  // Edit mode indicator
-                  if (_isEditMode) _buildEditModeIndicator(),
-                  
-                  // Error banner
-                  if (provider.error != null) _buildErrorBanner(provider),
-                  
-                  const SizedBox(height: 24),
-                  _buildBasicInformation(provider),
-                  const SizedBox(height: 24),
-                  _buildJobDescription(),
-                  const SizedBox(height: 24),
-                  _buildPositionCards(provider),
-                  const SizedBox(height: 24),
-                  _buildPersonSpecification(provider),
-                  const SizedBox(height: 24),
-                  _buildSkillsSection(),
-                  const SizedBox(height: 24),
-                  _buildJustificationSection(),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(provider),
-                ],
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.2),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header inside the card
+                    _buildHeaderContent(),
+                    
+                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    
+                    // Edit mode indicator
+                    if (_isEditMode) _buildEditModeIndicator(),
+                    
+                    // Error banner
+                    if (provider.error != null) _buildErrorBanner(provider),
+                    
+                    // Basic Information Section
+                    _buildSectionTitle('Basic Information'),
+                    const SizedBox(height: 16),
+                    _buildBasicInformationContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Job Description Section
+                    _buildSectionTitle('Job Description *'),
+                    const SizedBox(height: 16),
+                    _buildJobDescriptionContent(),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Requisition Details Section
+                    _buildSectionTitle('Requisition Details'),
+                    const SizedBox(height: 16),
+                    _buildPositionCardsContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Person Specification Section
+                    _buildSectionTitle('Person Specification & Justification'),
+                    const SizedBox(height: 16),
+                    _buildPersonSpecificationContent(provider),
+                    
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    
+                    // Skills Section
+                    _buildSectionTitle('Skills'),
+                    const SizedBox(height: 16),
+                    _buildSkillsSectionContent(),
+                    
+                    const SizedBox(height: 32),
+                    _buildActionButtons(provider),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildHeaderContent() {
+    return Column(
+      children: [
+        // Logo and company name
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Company logo
+            Container(
+              width: 40,
+              height: 35,
+              child: _buildLogo(),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                'SRI RAMACHANDRA MEDICAL CENTER',
+                style: TextStyle(
+                  fontSize: MediaQuery.of(context).size.width < 600 ? 18 : 24,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1565C0), // Dark blue to match screenshot
+                  letterSpacing: 0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        
+        // Location
+        Text(
+          'PORUR,CHENNAI-600116',
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width < 600 ? 14 : 16,
+            color: const Color(0xFF1565C0), // Dark blue to match screenshot
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        
+        // Form title
+        Text(
+          'TALENT REQUISITION FORM - NEW POSITION/REPLACEMENT',
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width < 600 ? 12 : 16,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1565C0), // Dark blue to match screenshot
+            letterSpacing: 0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF1565C0), // Dark blue to match screenshot
+      ),
+    );
+  }
+
+  Widget _buildBasicInformationContent(RequisitionProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _selectedDepartment,
+            decoration: const InputDecoration(
+              labelText: 'Department *',
+              border: OutlineInputBorder(),
+            ),
+            items: provider.departments.map((dept) => DropdownMenuItem(
+              value: dept.id.toString(),
+              child: Text(dept.referenceValue),
+            )).toList(),
+            onChanged: (value) => setState(() => _selectedDepartment = value),
+            validator: (value) => value == null ? 'Department is required' : null,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _jobPositionController,
+            decoration: const InputDecoration(
+              labelText: 'Job Position *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Job position is required' : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJobDescriptionContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Job Description Type Toggle
+        Row(
+          children: [
+            Radio<String>(
+              value: 'text',
+              groupValue: _jobDescriptionType,
+              onChanged: (value) {
+                setState(() {
+                  _jobDescriptionType = value!;
+                  print('🔘 Switched to TEXT mode');
+                });
+              },
+            ),
+            const Text('Text Description'),
+            const SizedBox(width: 24),
+            Radio<String>(
+              value: 'upload',
+              groupValue: _jobDescriptionType,
+              onChanged: (value) {
+                setState(() {
+                  _jobDescriptionType = value!;
+                  print('🔘 Switched to UPLOAD mode');
+                });
+              },
+            ),
+            const Text('Upload Document'),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        
+        if (_jobDescriptionType == 'text') ...[
+          TextFormField(
+            controller: _jobDescriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Job Description',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+            maxLines: 6,
+            validator: (value) => value?.isEmpty == true ? 'Job description is required' : null,
+          ),
+        ] else ...[
+          _buildFileUpload(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPositionCardsContent(RequisitionProvider provider) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            if (_showPositionCards)
+             
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: () => setState(() => _showPositionCards = !_showPositionCards),
+              icon: Icon(_showPositionCards ? Icons.expand_less : Icons.expand_more),
+              label: Text(_showPositionCards ? 'Hide Details' : 'Add Details'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        
+        if (_showPositionCards) ...[
+          const SizedBox(height: 16),
+          ..._positionCards.asMap().entries.map((entry) {
+            final index = entry.key;
+            final card = entry.value;
+            return _buildPositionCard(provider, index, card);
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPersonSpecificationContent(RequisitionProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _selectedGender,
+            decoration: const InputDecoration(
+              labelText: 'Preferred Gender',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Select Gender')),
+              ...provider.genders.map((gender) => DropdownMenuItem(
+                value: gender.id.toString(),
+                child: Text(gender.referenceValue),
+              )),
+            ],
+            onChanged: (value) => setState(() => _selectedGender = value),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _preferredAgeController,
+            decoration: const InputDecoration(
+              labelText: 'Preferred Age Group',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _qualificationController,
+            decoration: const InputDecoration(
+              labelText: 'Qualification *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Qualification is required' : null,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: TextFormField(
+            controller: _experienceController,
+            decoration: const InputDecoration(
+              labelText: 'Experience Required (in years) *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => value?.isEmpty == true ? 'Experience is required' : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkillsSectionContent() {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Essential Skills *',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _essentialSkillsController,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter essential skills separated by commas (e.g., JavaScript, React, Node.js)',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value?.isEmpty == true ? 'Essential skills are required' : null,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Separate multiple skills with commas (,)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Desirable Skills',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _desiredSkillsController,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter desirable skills separated by commas (e.g., Python, SQL, Docker)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Separate multiple skills with commas (,)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: Text(
+                'Justification Text',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                controller: _justificationController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter justification for the requisition',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 4,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -450,19 +962,30 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               Radio<String>(
                 value: 'text',
                 groupValue: _jobDescriptionType,
-                onChanged: (value) => setState(() => _jobDescriptionType = value!),
+                onChanged: (value) {
+                  setState(() {
+                    _jobDescriptionType = value!;
+                    print('🔘 Switched to TEXT mode');
+                  });
+                },
               ),
               const Text('Text Description'),
               const SizedBox(width: 24),
               Radio<String>(
                 value: 'upload',
                 groupValue: _jobDescriptionType,
-                onChanged: (value) => setState(() => _jobDescriptionType = value!),
+                onChanged: (value) {
+                  setState(() {
+                    _jobDescriptionType = value!;
+                    print('🔘 Switched to UPLOAD mode');
+                  });
+                },
               ),
               const Text('Upload Document'),
             ],
           ),
           const SizedBox(height: 16),
+          
           
           if (_jobDescriptionType == 'text') ...[
             TextFormField(
@@ -484,85 +1007,53 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   }
 
   Widget _buildFileUpload() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          if (_selectedFile == null && _existingFileUrl == null) ...[
-            Icon(Icons.cloud_upload, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            const Text('Click to upload job description document'),
-            const SizedBox(height: 8),
-            Text(
-              'PDF, DOC, DOCX, JPG, PNG up to 5MB',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+    // ENHANCED: Multi-file upload widget
+    print('\n📝 Building MultiFileUploadWidget:');
+    print('   - _filesPreviews count: ${_filesPreviews.length}');
+    print('   - Files to pass as initialFiles:');
+    for (var i = 0; i < _filesPreviews.length; i++) {
+      print('      ${i + 1}. ${_filesPreviews[i].name} (isExisting: ${_filesPreviews[i].isExisting})');
+    }
+    
+    return MultiFileUploadWidget(
+      label: null, // We handle the label in the parent section
+      helpText: 'Upload job description documents (PDF, DOC, DOCX, JPG, PNG up to 5MB each)',
+      required: _jobDescriptionType == 'upload',
+      initialFiles: _filesPreviews,
+      onFilesChanged: (List<FilePreview> files) {
+        setState(() {
+          _filesPreviews = files;
+          print('🔄 Files updated in MultiFileUploadWidget callback:');
+          print('   - New _filesPreviews count: ${files.length}');
+          print('   - Files: ${files.map((f) => f.name).join(", ")}');
+          
+          // CRITICAL: Verify files are actually in the state
+          print('   - Verifying _filesPreviews variable:');
+          print('     * _filesPreviews.length: ${_filesPreviews.length}');
+          if (_filesPreviews.isNotEmpty) {
+            for (var i = 0; i < _filesPreviews.length; i++) {
+              print('     * File ${i + 1}: ${_filesPreviews[i].name} (isExisting: ${_filesPreviews[i].isExisting})');
+            }
+          }
+        });
+      },
+      onError: (String? error) {
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              backgroundColor: Colors.red,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _pickFile,
-              child: const Text('Choose File'),
-            ),
-          ] else ...[
-            _buildFilePreview(),
-          ],
-        ],
-      ),
+          );
+        }
+      },
+      allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+      maxFileSizeInMB: 5,
+      enabled: true,
     );
   }
 
-  Widget _buildFilePreview() {
-    final fileName = _selectedFile?.path.split('/').last ?? 
-                   _existingFileUrl?.split('/').last ?? 
-                   'Unknown file';
-    
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.insert_drive_file, color: Colors.blue[600]),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  _selectedFile != null ? 'New file' : 'Existing file',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          if (_existingFileUrl != null)
-            IconButton(
-              icon: const Icon(Icons.visibility),
-              onPressed: () => _viewFile(_existingFileUrl!),
-              tooltip: 'Preview',
-            ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => setState(() {
-              _selectedFile = null;
-              _existingFileUrl = null;
-            }),
-            tooltip: 'Remove',
-          ),
-        ],
-      ),
-    );
-  }
+  // File preview is now handled by the EnhancedFileUploadWidget
 
   Widget _buildPositionCards(RequisitionProvider provider) {
     return _buildSection(
@@ -742,19 +1233,36 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: TextFormField(
-                  initialValue: card.vacancyToBeFilled,
-                  decoration: const InputDecoration(
+                  controller: TextEditingController(text: card.vacancyToBeFilled),
+                  decoration: InputDecoration(
                     labelText: 'Vacancy to be Filled On *',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    suffixIcon: Icon(Icons.calendar_today, color: Colors.blue[600]),
+                    hintText: 'Click to select date',
                   ),
                   readOnly: true,
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now().add(const Duration(days: 30)),
+                      initialDate: card.vacancyToBeFilled != null && card.vacancyToBeFilled!.isNotEmpty
+                          ? DateTime.tryParse(card.vacancyToBeFilled!) ?? DateTime.now().add(const Duration(days: 30))
+                          : DateTime.now().add(const Duration(days: 30)),
                       firstDate: DateTime.now(),
                       lastDate: DateTime.now().add(const Duration(days: 365)),
+                      helpText: 'Select Vacancy Date',
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: Colors.blue,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (date != null) {
                       setState(() {
@@ -762,6 +1270,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                       });
                     }
                   },
+                  validator: (value) => value?.isEmpty == true ? 'Vacancy date is required' : null,
                 ),
               ),
             ),
@@ -801,7 +1310,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue: card.employeeNo,
+                  controller: TextEditingController(text: card.employeeNo),
                   decoration: const InputDecoration(
                     labelText: 'Employee No *',
                     border: OutlineInputBorder(),
@@ -815,7 +1324,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.employeeName,
+                  controller: TextEditingController(text: card.employeeName),
                   decoration: const InputDecoration(
                     labelText: 'Employee Name *',
                     border: OutlineInputBorder(),
@@ -828,18 +1337,35 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.dateOfResignation,
-                  decoration: const InputDecoration(
+                  controller: TextEditingController(text: card.dateOfResignation),
+                  decoration: InputDecoration(
                     labelText: 'Date of Resignation *',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today, color: Colors.blue[600]),
+                    hintText: 'Click to select date',
                   ),
                   readOnly: true,
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now(),
+                      initialDate: card.dateOfResignation != null && card.dateOfResignation!.isNotEmpty
+                          ? DateTime.tryParse(card.dateOfResignation!) ?? DateTime.now()
+                          : DateTime.now(),
                       firstDate: DateTime.now().subtract(const Duration(days: 365)),
                       lastDate: DateTime.now().add(const Duration(days: 365)),
+                      helpText: 'Select Resignation Date',
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: Colors.blue,
+                              onPrimary: Colors.white,
+                              onSurface: Colors.black,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (date != null) {
                       setState(() {
@@ -854,7 +1380,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextFormField(
-                  initialValue: card.resignationReason,
+                  controller: TextEditingController(text: card.resignationReason),
                   decoration: const InputDecoration(
                     labelText: 'Resignation Reason *',
                     border: OutlineInputBorder(),
@@ -1019,22 +1545,32 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(
+                width: 120,
+                child: Text(
+                  'Justification Text',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextFormField(
+                  controller: _justificationController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter justification for the requisition',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 4,
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildJustificationSection() {
-    return _buildSection(
-      title: 'Justification Text',
-      child: TextFormField(
-        controller: _justificationController,
-        decoration: const InputDecoration(
-          labelText: 'Justification Text',
-          border: OutlineInputBorder(),
-          alignLabelWithHint: true,
-        ),
-        maxLines: 4,
       ),
     );
   }
@@ -1104,43 +1640,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     );
   }
 
-  // Helper methods
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
-      allowMultiple: false,
-    );
-
-    if (result != null && result.files.isNotEmpty) {
-      final file = File(result.files.first.path!);
-      final fileSize = await file.length();
-      
-      if (fileSize > 5 * 1024 * 1024) { // 5MB limit
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File size must be less than 5MB'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() {
-        _selectedFile = file;
-        _existingFileUrl = null; // Clear existing file when new file is selected
-      });
-    }
-  }
-
-  void _viewFile(String url) {
-    // TODO: Implement file viewing
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Opening: $url')),
-    );
-  }
+  // File handling is now managed by the EnhancedFileUploadWidget
 
   Future<void> _submitForm(RequisitionProvider provider) async {
     if (!_formKey.currentState!.validate()) {
@@ -1153,25 +1653,29 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
       return;
     }
 
-    // Validate job description
-    if (_jobDescriptionType == 'text' && _jobDescriptionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Job description is required'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_jobDescriptionType == 'upload' && _selectedFile == null && _existingFileUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload a job description document'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+    // FIXED: Allow user to save with EITHER text OR upload (files optional)
+    // Validate job description - require either text OR at least one file
+    final hasText = _jobDescriptionType == 'text' && _jobDescriptionController.text.trim().isNotEmpty;
+    final hasFiles = _jobDescriptionType == 'upload' && _filesPreviews.isNotEmpty;
+    
+    // Allow saving if:
+    // 1. Text mode with text content, OR
+    // 2. Upload mode with files, OR  
+    // 3. Text mode with NO files (user removed all files and switched to text)
+    if (!hasText && !hasFiles) {
+      // Only show error if BOTH are empty
+      if (_jobDescriptionType == 'text') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Job description text is required'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      // Upload mode with no files - this is now ALLOWED
+      // User may have removed all files intentionally
+      // We'll just proceed with saving
     }
 
     // Create requisition object
@@ -1218,15 +1722,30 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
 
     bool success;
     if (_isEditMode) {
+      // Extract new files to upload
+      final newFiles = _filesPreviews.where((f) => f.isNew).toList();
+      final existingFiles = _filesPreviews.where((f) => f.isExisting).toList();
+      
+      print('📤 Submitting update with:');
+      print('   - New files: ${newFiles.length}');
+      print('   - Existing files: ${existingFiles.length}');
+      
       success = await provider.updateRequisition(
         widget.requisition!.id!,
         requisition,
-        jobDocument: _selectedFile,
+        jobDocuments: newFiles,
+        existingFiles: existingFiles,
       );
     } else {
+      // Extract new files to upload
+      final newFiles = _filesPreviews.where((f) => f.isNew).toList();
+      
+      print('📤 Submitting create with:');
+      print('   - New files: ${newFiles.length}');
+      
       success = await provider.createRequisition(
         requisition,
-        jobDocument: _selectedFile,
+        jobDocuments: newFiles,
       );
     }
 
@@ -1251,6 +1770,657 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     }
   }
 
+  /// Show form preview dialog
+  void _showFormPreview() {
+    // Capture current state including files
+    final currentJobDescriptionType = _jobDescriptionType;
+    final currentFilesPreviews = List<FilePreview>.from(_filesPreviews);
+    final currentIsEditMode = _isEditMode;
+    
+    // CRITICAL DEBUG: Log state when preview opens
+    print('\n' + '='*80);
+    print('🔍 OPENING PREVIEW DIALOG');
+    print('='*80);
+    print('📊 Current State:');
+    print('   - Edit Mode: $currentIsEditMode');
+    print('   - Job Description Type: $currentJobDescriptionType');
+    print('   - Files in _filesPreviews: ${currentFilesPreviews.length}');
+    if (currentFilesPreviews.isNotEmpty) {
+      print('   - Files list:');
+      for (var i = 0; i < currentFilesPreviews.length; i++) {
+        final file = currentFilesPreviews[i];
+        print('      ${i + 1}. ${file.name}');
+        print('         - Size: ${file.formattedSize}');
+        print('         - Type: ${file.type}');
+        print('         - isNew: ${file.isNew}');
+        print('         - isExisting: ${file.isExisting}');
+        print('         - URL: ${file.url}');
+      }
+    } else {
+      print('   ⚠️ NO FILES IN _filesPreviews!');
+    }
+    print('='*80);
+    print('');
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            height: MediaQuery.of(context).size.height * 0.95,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Preview Header
+                _buildPreviewHeader(),
+                
+                // Preview Content (Scrollable)
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildPreviewContent(
+                      files: currentFilesPreviews,
+                      jobDescType: currentJobDescriptionType,
+                    ),
+                  ),
+                ),
+                
+                // Preview Footer
+                _buildPreviewFooter(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build preview header
+  Widget _buildPreviewHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.preview,
+            color: Colors.blue[600],
+            size: 32,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Requisition Form Preview',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                Text(
+                  _isEditMode ? 'Edit Mode - ID: ${widget.requisition?.id ?? 'N/A'}' : 'New Requisition',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+            tooltip: 'Close Preview',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build preview content (read-only form view)
+  Widget _buildPreviewContent({
+    required List<FilePreview> files,
+    required String jobDescType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header Section
+        _buildPreviewSection(
+          title: 'Company Information',
+          child: _buildPreviewCompanyHeader(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Basic Information
+        _buildPreviewSection(
+          title: 'Basic Information',
+          child: _buildPreviewBasicInfo(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Job Description
+        _buildPreviewSection(
+          title: 'Job Description',
+          child: _buildPreviewJobDescription(
+            files: files,
+            jobDescType: jobDescType,
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Position Details
+        if (_positionCards.isNotEmpty)
+          _buildPreviewSection(
+            title: 'Position Details',
+            child: _buildPreviewPositionDetails(),
+          ),
+        
+        const SizedBox(height: 16),
+        
+        // Person Specification
+        _buildPreviewSection(
+          title: 'Person Specification',
+          child: _buildPreviewPersonSpecification(),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Skills
+        _buildPreviewSection(
+          title: 'Skills Requirements',
+          child: _buildPreviewSkills(),
+        ),
+      ],
+    );
+  }
+
+  /// Build preview section wrapper
+  Widget _buildPreviewSection({required String title, required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue[800],
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  /// Build company header preview
+  Widget _buildPreviewCompanyHeader() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 35,
+              child: _buildLogo(),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'SRI RAMACHANDRA MEDICAL CENTER',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'PORUR,CHENNAI-600116',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.blue,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'TALENT REQUISITION FORM - NEW POSITION/REPLACEMENT',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  /// Build basic info preview
+  Widget _buildPreviewBasicInfo() {
+    return Column(
+      children: [
+        _buildPreviewRow('Department', _getDisplayValue(_selectedDepartment, 'departments')),
+        _buildPreviewRow('Job Position', _jobPositionController.text),
+      ],
+    );
+  }
+
+  /// Build job description preview
+  Widget _buildPreviewJobDescription({
+    required List<FilePreview> files,
+    required String jobDescType,
+  }) {
+    // CRITICAL: Add debug logging
+    print('\n🔍 PREVIEW - Job Description Type: $jobDescType');
+    print('🔍 PREVIEW - Files count: ${files.length}');
+    if (files.isNotEmpty) {
+      print('🔍 PREVIEW - Files list:');
+      for (var i = 0; i < files.length; i++) {
+        print('   ${i + 1}. ${files[i].name} (${files[i].formattedSize})');
+      }
+    }
+    
+    // ENHANCED: Show files if they exist, regardless of mode setting
+    // This handles cases where files were uploaded but mode wasn't switched
+    if (files.isNotEmpty) {
+      print('✅ PREVIEW - Showing ${files.length} files (FORCE DISPLAY)');
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPreviewRow('Job Description Type', 'Document Upload'),
+          _buildPreviewRow('Documents', '${files.length} document(s) uploaded'),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.only(left: 8, bottom: 4),
+            child: Text(
+              'Uploaded Files:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          ...files.map((file) => InkWell(
+            onTap: () async {
+              // Open the file in a new tab/window
+              if (file.url != null && file.url!.isNotEmpty) {
+                print('📂 Opening file: ${file.url}');
+                try {
+                  final uri = Uri.parse(file.url!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    print('❌ Cannot launch URL: ${file.url}');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Cannot open file'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('❌ Error launching URL: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error opening file: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.only(left: 16, bottom: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    file.type == 'pdf' ? Icons.picture_as_pdf :
+                    file.type == 'image' ? Icons.image :
+                    Icons.insert_drive_file,
+                    size: 20,
+                    color: Colors.blue[700],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          file.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.underline,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          file.formattedSize,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (file.isExisting)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Text(
+                        'Existing',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.open_in_new,
+                    size: 16,
+                    color: Colors.blue[600],
+                  ),
+                ],
+              ),
+            ),
+          )),
+        ],
+      );
+    }
+    
+    // No files - check mode
+    if (jobDescType == 'text') {
+      return _buildPreviewRow('Job Description', _jobDescriptionController.text, isMultiline: true);
+    } else {
+      // UPLOAD mode - show no files message
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPreviewRow('Job Description Type', 'Document Upload'),
+          _buildPreviewRow('Documents', 'No documents uploaded'),
+        ],
+      );
+    }
+  }
+
+  /// Build position details preview
+  Widget _buildPreviewPositionDetails() {
+    return Column(
+      children: _positionCards.asMap().entries.map((entry) {
+        final index = entry.key;
+        final card = entry.value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Position Card #${index + 1}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPreviewRow('Type of Requisition', _getDisplayValue(card.typeRequisition, 'requisitionTypes')),
+              _buildPreviewRow('Reason', _getDisplayValue(card.requirementsReason, card.typeRequisition == '1' ? 'newHireReasons' : 'replacementReasons')),
+              _buildPreviewRow('Head Count', card.headcount),
+              _buildPreviewRow('Vacancy Date', card.vacancyToBeFilled ?? 'Not set'),
+              _buildPreviewRow('Employment Type', _getDisplayValue(card.employmentType, 'employmentTypes')),
+              if (card.typeRequisition == '2') ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Employee Information:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                _buildPreviewRow('Employee No', card.employeeNo ?? ''),
+                _buildPreviewRow('Employee Name', card.employeeName ?? ''),
+                _buildPreviewRow('Date of Resignation', card.dateOfResignation ?? ''),
+                _buildPreviewRow('Resignation Reason', card.resignationReason ?? ''),
+              ],
+              if (card.justificationText?.isNotEmpty == true)
+                _buildPreviewRow('Justification', card.justificationText!, isMultiline: true),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Build person specification preview
+  Widget _buildPreviewPersonSpecification() {
+    return Column(
+      children: [
+        _buildPreviewRow('Preferred Gender', _getDisplayValue(_selectedGender, 'genders')),
+        _buildPreviewRow('Preferred Age Group', _preferredAgeController.text),
+        _buildPreviewRow('Qualification', _qualificationController.text),
+        _buildPreviewRow('Experience Required', _experienceController.text),
+      ],
+    );
+  }
+
+  /// Build skills preview
+  Widget _buildPreviewSkills() {
+    return Column(
+      children: [
+        _buildPreviewRow('Essential Skills', _essentialSkillsController.text, isMultiline: true),
+        _buildPreviewRow('Desirable Skills', _desiredSkillsController.text, isMultiline: true),
+        if (_justificationController.text.isNotEmpty)
+          _buildPreviewRow('Justification Text', _justificationController.text, isMultiline: true),
+      ],
+    );
+  }
+
+  /// Build preview row
+  Widget _buildPreviewRow(String label, String value, {bool isMultiline = false}) {
+    if (value.isEmpty) {
+      value = 'Not specified';
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: value == 'Not specified' ? Colors.grey : Colors.black,
+                fontStyle: value == 'Not specified' ? FontStyle.italic : FontStyle.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Get display value for dropdowns
+  String _getDisplayValue(String? value, String type) {
+    if (value == null || value.isEmpty) return 'Not selected';
+    
+    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+    
+    switch (type) {
+      case 'departments':
+        final item = provider.departments.firstWhere((dept) => dept.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'genders':
+        final item = provider.genders.firstWhere((gender) => gender.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'requisitionTypes':
+        final item = provider.requisitionTypes.firstWhere((type) => type.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'newHireReasons':
+        final item = provider.newHireReasons.firstWhere((reason) => reason.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'replacementReasons':
+        final item = provider.replacementReasons.firstWhere((reason) => reason.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      case 'employmentTypes':
+        final item = provider.employmentTypes.firstWhere((type) => type.id.toString() == value, orElse: () => ReferenceData(id: 0, referenceValue: 'Unknown'));
+        return item.referenceValue;
+      default:
+        return value;
+    }
+  }
+
+
+
+  /// Helper method to get file extension
+  String _getFileExtension(String fileName) {
+    final lastDot = fileName.lastIndexOf('.');
+    if (lastDot != -1 && lastDot < fileName.length - 1) {
+      return fileName.substring(lastDot + 1);
+    }
+    return '';
+  }
+
+  /// Helper method to format file size
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB"];
+    var i = 0;
+    double size = bytes.toDouble();
+    while (size >= 1024 && i < suffixes.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return "${size.toStringAsFixed(size < 10 ? 1 : 0)} ${suffixes[i]}";
+  }
+
+  /// Build preview footer
+  Widget _buildPreviewFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Preview Mode - Form data is read-only',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Could add print functionality here
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Print functionality can be added here'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.print, size: 16),
+                label: const Text('Print'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _jobPositionController.dispose();
@@ -1269,27 +2439,6 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
     
     super.dispose();
   }
-}
-
-// Custom Triangle Painter for the logo fallback
-class TrianglePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    path.moveTo(size.width / 2, 0); // Top point
-    path.lineTo(0, size.height); // Bottom left
-    path.lineTo(size.width, size.height); // Bottom right
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
 // Helper class for managing position cards
@@ -1317,9 +2466,8 @@ class RequisitionPositionCard {
     this.dateOfResignation,
     this.resignationReason,
   }) {
-    // Set default vacancy date to 30 days from now
+    // Set default vacancy date to TODAY instead of 30 days from now
     vacancyToBeFilled ??= DateTime.now()
-        .add(const Duration(days: 30))
         .toIso8601String()
         .split('T')[0];
   }

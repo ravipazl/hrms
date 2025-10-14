@@ -352,13 +352,13 @@ class _WorkflowApproverSetupScreenState
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Configure approvers for requisition ${widget.requisitionId} using template "${provider.template.name}"',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
+                // Text(
+                //   'Configure approvers for requisition ${widget.requisitionId} using template "${provider.template.name}"',
+                //   style: TextStyle(
+                //     fontSize: 12,
+                //     color: Colors.grey[600],
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -538,142 +538,142 @@ class _WorkflowApproverSetupScreenState
             const SizedBox(height: 24),
 
             // Instructions
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info, size: 16, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Instructions',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Click on approval nodes to assign approvers\n'
-                    '• Select employee from dropdown\n'
-                    '• User ID will be auto-filled\n'
-                    '• All approval nodes must have valid approvers',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            // Container(
+            //   padding: const EdgeInsets.all(12),
+            //   decoration: BoxDecoration(
+            //     color: Colors.blue.shade50,
+            //     borderRadius: BorderRadius.circular(8),
+            //     border: Border.all(color: Colors.blue.shade200),
+            //   ),
+            //   child: Column(
+            //     crossAxisAlignment: CrossAxisAlignment.start,
+            //     children: [
+            //       Row(
+            //         children: [
+            //           Icon(Icons.info, size: 16, color: Colors.blue.shade700),
+            //           const SizedBox(width: 8),
+            //           Text(
+            //             'Instructions',
+            //             style: TextStyle(
+            //               fontSize: 14,
+            //               fontWeight: FontWeight.bold,
+            //               color: Colors.blue.shade700,
+            //             ),
+            //           ),
+            //         ],
+            //       ),
+            //       const SizedBox(height: 8),
+            //       Text(
+            //         '• Click on approval nodes to assign approvers\n'
+            //         '• Select employee from dropdown\n'
+            //         '• User ID will be auto-filled\n'
+            //         '• All approval nodes must have valid approvers',
+            //         style: TextStyle(
+            //           fontSize: 12,
+            //           color: Colors.blue.shade700,
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+            // ),
+            // const SizedBox(height: 16),
 
             // ✅ ENHANCED: Approval nodes summary matching React
-            _buildApprovalNodesSummary(provider),
+            // _buildApprovalNodesSummary(provider),
           ],
         ),
       ),
     );
   }
 
-  /// ✅ ENHANCED: Build approval nodes summary with progress indicator
-  Widget _buildApprovalNodesSummary(WorkflowProvider provider) {
-    final approvalNodes = provider.template.nodes
-        .where((node) => node.type == 'approval')
-        .toList();
+  // /// ✅ ENHANCED: Build approval nodes summary with progress indicator
+  // Widget _buildApprovalNodesSummary(WorkflowProvider provider) {
+  //   final approvalNodes = provider.template.nodes
+  //       .where((node) => node.type == 'approval')
+  //       .toList();
 
-    final assignedNodes = approvalNodes.where((node) {
-      final hasValidEmployee = node.data.selectedEmployeeId != null &&
-          node.data.selectedEmployeeId.toString().isNotEmpty &&
-          node.data.username != null &&
-          node.data.username!.isNotEmpty &&
-          node.data.username != 'user';
+  //   final assignedNodes = approvalNodes.where((node) {
+  //     final hasValidEmployee = node.data.selectedEmployeeId != null &&
+  //         node.data.selectedEmployeeId.toString().isNotEmpty &&
+  //         node.data.username != null &&
+  //         node.data.username!.isNotEmpty &&
+  //         node.data.username != 'user';
 
-      final hasValidUserId = node.data.userId != null &&
-          node.data.userId!.trim().isNotEmpty &&
-          node.data.userId!.trim() != 'user';
+  //     final hasValidUserId = node.data.userId != null &&
+  //         node.data.userId!.trim().isNotEmpty &&
+  //         node.data.userId!.trim() != 'user';
 
-      return hasValidEmployee && hasValidUserId;
-    }).length;
+  //     return hasValidEmployee && hasValidUserId;
+  //   }).length;
 
-    final isComplete = assignedNodes == approvalNodes.length;
+  //   final isComplete = assignedNodes == approvalNodes.length;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isComplete ? Colors.green.shade50 : Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isComplete ? Colors.green.shade200 : Colors.orange.shade200,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Approver Assignment',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '$assignedNodes/${approvalNodes.length}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: approvalNodes.isEmpty ? 0 : assignedNodes / approvalNodes.length,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isComplete ? Colors.green : Colors.orange,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                isComplete ? Icons.check_circle : Icons.warning,
-                size: 16,
-                color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isComplete
-                      ? 'All approvers assigned'
-                      : '${approvalNodes.length - assignedNodes} node(s) need approvers',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  //   return Container(
+  //     padding: const EdgeInsets.all(12),
+  //     decoration: BoxDecoration(
+  //       color: isComplete ? Colors.green.shade50 : Colors.orange.shade50,
+  //       borderRadius: BorderRadius.circular(8),
+  //       border: Border.all(
+  //         color: isComplete ? Colors.green.shade200 : Colors.orange.shade200,
+  //       ),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: [
+  //             const Text(
+  //               'Approver Assignment',
+  //               style: TextStyle(
+  //                 fontSize: 14,
+  //                 fontWeight: FontWeight.bold,
+  //               ),
+  //             ),
+  //             Text(
+  //               '$assignedNodes/${approvalNodes.length}',
+  //               style: TextStyle(
+  //                 fontSize: 14,
+  //                 fontWeight: FontWeight.bold,
+  //                 color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 8),
+  //         LinearProgressIndicator(
+  //           value: approvalNodes.isEmpty ? 0 : assignedNodes / approvalNodes.length,
+  //           backgroundColor: Colors.grey.shade200,
+  //           valueColor: AlwaysStoppedAnimation<Color>(
+  //             isComplete ? Colors.green : Colors.orange,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 8),
+  //         Row(
+  //           children: [
+  //             Icon(
+  //               isComplete ? Icons.check_circle : Icons.warning,
+  //               size: 16,
+  //               color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
+  //             ),
+  //             const SizedBox(width: 8),
+  //             Expanded(
+  //               child: Text(
+  //                 isComplete
+  //                     ? 'All approvers assigned'
+  //                     : '${approvalNodes.length - assignedNodes} node(s) need approvers',
+  //                 style: TextStyle(
+  //                   fontSize: 12,
+  //                   color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   /// ✅ FIXED: Build canvas area using existing WorkflowCanvas widget
   Widget _buildCanvasArea(WorkflowProvider provider) {

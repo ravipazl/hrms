@@ -506,6 +506,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
   );
 }
 
+
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),

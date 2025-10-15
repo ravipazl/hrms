@@ -64,7 +64,8 @@ class FormField {
   /// Create a default field of a specific type
   factory FormField.createDefault(FieldType type) {
     final uuid = Uuid();
-    final id = 'field_${DateTime.now().millisecondsSinceEpoch}_${uuid.v4().substring(0, 8)}';
+    final id =
+        'field_${DateTime.now().millisecondsSinceEpoch}_${uuid.v4().substring(0, 8)}';
 
     switch (type) {
       case FieldType.text:
@@ -74,10 +75,7 @@ class FormField {
           label: 'Text Field',
           placeholder: 'Enter text...',
           required: false,
-          props: {
-            'maxLength': 100,
-            'minLength': null,
-          },
+          props: {'maxLength': 100, 'minLength': null},
         );
 
       case FieldType.email:
@@ -110,11 +108,7 @@ class FormField {
           label: 'Number',
           placeholder: 'Enter number...',
           required: false,
-          props: {
-            'min': 0,
-            'max': 1000,
-            'step': 1,
-          },
+          props: {'min': 0, 'max': 1000, 'step': 1},
         );
 
       case FieldType.textarea:
@@ -124,10 +118,7 @@ class FormField {
           label: 'Description',
           placeholder: 'Enter text...',
           required: false,
-          props: {
-            'rows': 4,
-            'maxLength': 500,
-          },
+          props: {'rows': 4, 'maxLength': 500},
         );
 
       case FieldType.select:
@@ -181,20 +172,10 @@ class FormField {
         );
 
       case FieldType.date:
-        return FormField(
-          id: id,
-          type: type,
-          label: 'Date',
-          required: false,
-        );
+        return FormField(id: id, type: type, label: 'Date', required: false);
 
       case FieldType.time:
-        return FormField(
-          id: id,
-          type: type,
-          label: 'Time',
-          required: false,
-        );
+        return FormField(id: id, type: type, label: 'Time', required: false);
 
       case FieldType.tel:
         return FormField(
@@ -263,9 +244,9 @@ class FormField {
               {
                 'type': 'paragraph',
                 'children': [
-                  {'text': ''}
-                ]
-              }
+                  {'text': ''},
+                ],
+              },
             ],
             'embeddedFields': [],
             'toolbar': {
@@ -279,7 +260,16 @@ class FormField {
               'lists': true,
               'link': true,
               'quote': true,
-              'insertFields': ['text', 'number', 'email', 'date', 'select', 'checkbox', 'radio', 'textarea'],
+              'insertFields': [
+                'text',
+                'number',
+                'email',
+                'date',
+                'select',
+                'checkbox',
+                'radio',
+                'textarea',
+              ],
             },
           },
         );
@@ -309,7 +299,11 @@ class FormField {
                 'label': 'Number Column',
                 'required': false,
                 'width': 'auto',
-                'fieldProps': {'placeholder': 'Enter number...', 'min': 0, 'max': 1000},
+                'fieldProps': {
+                  'placeholder': 'Enter number...',
+                  'min': 0,
+                  'max': 1000,
+                },
               },
             ],
             'rows': [
@@ -355,18 +349,19 @@ class FormField {
       height: json['height'] as int? ?? 1,
       value: json['value'],
       defaultValue: json['defaultValue'],
-      props: Map<String, dynamic>.from(json)
-        ..removeWhere((key, value) => [
-              'id',
-              'type',
-              'label',
-              'placeholder',
-              'required',
-              'width',
-              'height',
-              'value',
-              'defaultValue'
-            ].contains(key)),
+      props: Map<String, dynamic>.from(json)..removeWhere(
+        (key, value) => [
+          'id',
+          'type',
+          'label',
+          'placeholder',
+          'required',
+          'width',
+          'height',
+          'value',
+          'defaultValue',
+        ].contains(key),
+      ),
     );
   }
 
@@ -427,7 +422,7 @@ class FormField {
         'width',
         'height',
         'value',
-        'defaultValue'
+        'defaultValue',
       ].contains(key)) {
         // Skip - these are handled by copyWith
       } else {
@@ -442,8 +437,63 @@ class FormField {
       width: updates['width'] as int?,
       height: updates['height'] as int?,
       value: updates.containsKey('value') ? updates['value'] : value,
-      defaultValue: updates.containsKey('defaultValue') ? updates['defaultValue'] : defaultValue,
+      defaultValue:
+          updates.containsKey('defaultValue')
+              ? updates['defaultValue']
+              : defaultValue,
       props: updatedProps,
     );
+  }
+
+  /// Validate field configuration and return errors
+  List<String> validate() {
+    final errors = <String>[];
+
+    if (label.trim().isEmpty) {
+      errors.add('Label is required');
+    }
+
+    switch (type) {
+      case FieldType.text:
+      case FieldType.textarea:
+      case FieldType.richText:
+      case FieldType.email:
+      case FieldType.password:
+      case FieldType.number:
+      case FieldType.tel:
+      case FieldType.url:
+      case FieldType.time:
+      case FieldType.date:
+        // No additional validation for simple fields yet
+        break;
+      case FieldType.select:
+      case FieldType.radio:
+      case FieldType.checkboxGroup:
+        final options = props['options'];
+        if (options is! List || options.isEmpty) {
+          errors.add('At least one option is required');
+        }
+        break;
+      case FieldType.checkbox:
+        // Checkbox can be standalone, no extra validation
+        break;
+      case FieldType.file:
+        final maxFileSize = props['maxFileSize'];
+        if (maxFileSize is int && maxFileSize <= 0) {
+          errors.add('Max file size must be greater than zero');
+        }
+        break;
+      case FieldType.signature:
+        // No extra validation
+        break;
+      case FieldType.table:
+        final columns = props['columns'];
+        if (columns is! List || columns.isEmpty) {
+          errors.add('At least one column is required');
+        }
+        break;
+    }
+
+    return errors;
   }
 }

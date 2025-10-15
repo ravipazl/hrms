@@ -9,8 +9,9 @@ import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
 import 'providers/workflow_provider.dart';
 import 'providers/form_builder_provider.dart';
-
+import 'providers/template_list_provider.dart';
 import 'screens/workflow_creation_screen.dart';
+import 'screens/form_builder/form_list_screen.dart';
 // import 'screens/home_screen.dart';
 import 'screens/form_builder/form_builder_screen.dart';
 
@@ -32,18 +33,32 @@ class MyApp extends StatelessWidget {
             children: [
               const Icon(Icons.error_outline, size: 80, color: Colors.red),
               const SizedBox(height: 24),
-              Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
-              Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
-                  html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+                  html.window.location.href =
+                      'http://127.0.0.1:8000/workflow/templates/';
                 },
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back to Templates'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ],
@@ -81,23 +96,25 @@ class MyApp extends StatelessWidget {
           final path = uri.path.replaceAll(RegExp(r'/$'), '');
           final queryParams = uri.queryParameters;
           final templateId = int.tryParse(queryParams['id'] ?? '');
-          
+
           // ✅ NEW: Handle /reqview/{id} - Requisition View Page
           if (path.contains('/reqview/')) {
             final regex = RegExp(r'/reqview/(\d+)');
             final match = regex.firstMatch(path);
             if (match != null) {
               final requisitionId = int.parse(match.group(1)!);
-              print('✅ Requisition view route detected with ID: $requisitionId');
+              print(
+                '✅ Requisition view route detected with ID: $requisitionId',
+              );
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => RequisitionViewScreen(
-                  requisitionId: requisitionId,
-                ),
+                builder:
+                    (context) =>
+                        RequisitionViewScreen(requisitionId: requisitionId),
               );
             }
           }
-          
+
           // ✅ NEW: Handle /approval/{stepId}?action=approved - Approval Action Page
           if (path.contains('/approval/')) {
             final regex = RegExp(r'/approval/(\d+)');
@@ -105,17 +122,20 @@ class MyApp extends StatelessWidget {
             if (match != null) {
               final stepId = int.parse(match.group(1)!);
               final suggestedAction = queryParams['action'] ?? 'approved';
-              print('✅ Approval action route detected with stepId: $stepId, action: $suggestedAction');
+              print(
+                '✅ Approval action route detected with stepId: $stepId, action: $suggestedAction',
+              );
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => ApprovalActionScreen(
-                  stepId: stepId,
-                  suggestedAction: suggestedAction,
-                ),
+                builder:
+                    (context) => ApprovalActionScreen(
+                      stepId: stepId,
+                      suggestedAction: suggestedAction,
+                    ),
               );
             }
           }
-          
+
           // Handle requisition edit route pattern with ID in path
           if (path.contains('/reqfrom/')) {
             final regex = RegExp(r'/reqfrom/(\d+)');
@@ -129,98 +149,114 @@ class MyApp extends StatelessWidget {
               );
             }
           }
-          
+
           // ✅ EXACT MATCH ROUTING
           switch (path) {
             case '/workflow-creation':
             case '/create':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const WorkflowCreationScreen(mode: 'create'),
+                builder:
+                    (context) => const WorkflowCreationScreen(mode: 'create'),
               );
-            
+
             case '/edit':
               if (templateId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Template ID Required',
-                    'Edit mode requires ?id=123 parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Template ID Required',
+                        'Edit mode requires ?id=123 parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => WorkflowCreationScreen(
-                  templateId: templateId,
-                  mode: 'edit',
-                ),
+                builder:
+                    (context) => WorkflowCreationScreen(
+                      templateId: templateId,
+                      mode: 'edit',
+                    ),
               );
-            
+
             case '/view':
               if (templateId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Template ID Required',
-                    'View mode requires ?id=123 parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Template ID Required',
+                        'View mode requires ?id=123 parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => WorkflowCreationScreen(
-                  templateId: templateId,
-                  mode: 'view',
-                ),
+                builder:
+                    (context) => WorkflowCreationScreen(
+                      templateId: templateId,
+                      mode: 'view',
+                    ),
               );
-            
+
             // Requisition create route
             case '/reqfrom':
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => const RequisitionFormScreen(),
               );
-            
+
             // Form Builder routes
             case '/form-builder':
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => const FormBuilderScreen(),
               );
-            
+
+            case '/form-builder/list':
+              return MaterialPageRoute(
+                builder:
+                    (_) => ChangeNotifierProvider(
+                      create: (_) => TemplateListProvider()..loadTemplates(),
+                      child: const FormListScreen(),
+                    ),
+              );
+
             case '/form-builder/edit':
               final formId = queryParams['id'];
               if (formId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Form ID Required',
-                    'Edit mode requires ?id=xxx parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Form ID Required',
+                        'Edit mode requires ?id=xxx parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => FormBuilderScreen(templateId: formId),
               );
-            
+
             case '/form-builder/view':
               final formId = queryParams['id'];
               if (formId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Form ID Required',
-                    'View mode requires ?id=xxx parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Form ID Required',
+                        'View mode requires ?id=xxx parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => FormBuilderScreen(templateId: formId),
               );
-            
+
             case '':
             default:
               return MaterialPageRoute(
@@ -244,7 +280,11 @@ class WorkflowListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('HRMS Workflow Management'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () {}, tooltip: 'Refresh'),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {},
+            tooltip: 'Refresh',
+          ),
         ],
       ),
       body: Center(
@@ -257,13 +297,17 @@ class WorkflowListScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.account_tree, size: 120, color: Colors.blue),
                 const SizedBox(height: 32),
-                const Text('Workflow Management System', 
+                const Text(
+                  'Workflow Management System',
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 16),
-                const Text('Create and manage workflow templates for your organization',
+                const Text(
+                  'Create and manage workflow templates for your organization',
                   style: TextStyle(fontSize: 18, color: Colors.grey),
-                  textAlign: TextAlign.center),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 48),
                 Wrap(
                   spacing: 16,
@@ -274,9 +318,16 @@ class WorkflowListScreen extends StatelessWidget {
                       width: 200,
                       height: 56,
                       child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pushNamed(context, '/workflow-creation'),
+                        onPressed:
+                            () => Navigator.pushNamed(
+                              context,
+                              '/workflow-creation',
+                            ),
                         icon: const Icon(Icons.add, size: 24),
-                        label: const Text('Create Workflow', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'Create Workflow',
+                          style: TextStyle(fontSize: 16),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
@@ -289,7 +340,10 @@ class WorkflowListScreen extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () => Navigator.pushNamed(context, '/edit'),
                         icon: const Icon(Icons.edit, size: 24),
-                        label: const Text('Edit Template', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'Edit Template',
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
                     ),
                     SizedBox(
@@ -298,16 +352,23 @@ class WorkflowListScreen extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: () => Navigator.pushNamed(context, '/view'),
                         icon: const Icon(Icons.visibility, size: 24),
-                        label: const Text('View Template', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'View Template',
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
                     ),
                     SizedBox(
                       width: 200,
                       height: 56,
                       child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pushNamed(context, '/form-builder'),
+                        onPressed:
+                            () => Navigator.pushNamed(context, '/form-builder'),
                         icon: const Icon(Icons.dynamic_form, size: 24),
-                        label: const Text('Form Builder', style: TextStyle(fontSize: 16)),
+                        label: const Text(
+                          'Form Builder',
+                          style: TextStyle(fontSize: 16),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
@@ -328,8 +389,10 @@ class WorkflowListScreen extends StatelessWidget {
                     children: [
                       Icon(Icons.info_outline, color: Colors.blue.shade700),
                       const SizedBox(width: 12),
-                      const Text('Connected to Django API at http://127.0.0.1:8000',
-                        style: TextStyle(fontSize: 14)),
+                      const Text(
+                        'Connected to Django API at http://127.0.0.1:8000',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ],
                   ),
                 ),
@@ -363,10 +426,10 @@ class _RouterWidgetState extends State<RouterWidget> {
     // Get current URL
     final uri = Uri.base;
     final path = uri.path;
-    
+
     print('🌐 Current URL: ${uri.toString()}');
     print('📍 Current path: $path');
-    
+
     // Check for requisition view route pattern
     if (path.contains('/reqview/')) {
       final regex = RegExp(r'/reqview/(\d+)');
@@ -379,7 +442,7 @@ class _RouterWidgetState extends State<RouterWidget> {
         return;
       }
     }
-    
+
     // Check for edit route pattern
     if (path.contains('/reqfrom/')) {
       final regex = RegExp(r'/reqfrom/(\d+)');
@@ -392,7 +455,7 @@ class _RouterWidgetState extends State<RouterWidget> {
         return;
       }
     }
-    
+
     // Default to create form
     print('🏠 Default route, showing create form');
     _targetWidget = const RequisitionFormScreen();
@@ -402,13 +465,9 @@ class _RouterWidgetState extends State<RouterWidget> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    
+
     return _targetWidget ?? const RequisitionFormScreen();
   }
 }
@@ -416,12 +475,13 @@ class _RouterWidgetState extends State<RouterWidget> {
 class RequisitionEditWrapper extends StatelessWidget {
   final int requisitionId;
 
-  const RequisitionEditWrapper({Key? key, required this.requisitionId}) : super(key: key);
+  const RequisitionEditWrapper({Key? key, required this.requisitionId})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     print('🔧 Building RequisitionEditWrapper for ID: $requisitionId');
-    
+
     return FutureBuilder<Requisition?>(
       future: _loadRequisitionForEdit(context, requisitionId),
       builder: (context, snapshot) {
@@ -444,7 +504,7 @@ class RequisitionEditWrapper extends StatelessWidget {
             ),
           );
         }
-        
+
         if (snapshot.hasError) {
           print('❌ Error loading requisition: ${snapshot.error}');
           return Scaffold(
@@ -458,7 +518,8 @@ class RequisitionEditWrapper extends StatelessWidget {
                   Text('Error loading requisition: ${snapshot.error}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+                    onPressed:
+                        () => Navigator.of(context).pushReplacementNamed('/'),
                     child: const Text('Go Back'),
                   ),
                 ],
@@ -466,9 +527,11 @@ class RequisitionEditWrapper extends StatelessWidget {
             ),
           );
         }
-        
+
         // Show edit form with loaded data
-        print('✅ Showing edit form with loaded data for ID: ${snapshot.data!.id}');
+        print(
+          '✅ Showing edit form with loaded data for ID: ${snapshot.data!.id}',
+        );
         return RequisitionFormScreen(requisition: snapshot.data);
       },
     );
@@ -476,16 +539,19 @@ class RequisitionEditWrapper extends StatelessWidget {
 }
 
 // Data loading functions
-Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisitionId) async {
+Future<Requisition?> _loadRequisitionForEdit(
+  BuildContext context,
+  int requisitionId,
+) async {
   try {
-    print('\n' + '='*80);
+    print('\n' + '=' * 80);
     print('🔍 _loadRequisitionForEdit CALLED');
-    print('='*80);
+    print('=' * 80);
     print('🎯 Requisition ID to load: $requisitionId');
-    
+
     print('🔍 Loading requisition for edit: $requisitionId');
     final provider = Provider.of<RequisitionProvider>(context, listen: false);
-    
+
     // Initialize provider if not already done
     print('🛠️ Initializing provider...');
     if (provider.departments.isEmpty) {
@@ -494,14 +560,16 @@ Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisiti
     } else {
       print('ℹ️ Provider already initialized');
     }
-    
+
     // Wait a moment for initialization
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     // Get the specific requisition
-    print('📡 Fetching requisition data from API: /api/v1/requisition/$requisitionId/');
+    print(
+      '📡 Fetching requisition data from API: /api/v1/requisition/$requisitionId/',
+    );
     final requisition = await provider.getRequisition(requisitionId);
-    
+
     if (requisition != null) {
       print('\n✅ SUCCESSFULLY LOADED REQUISITION:');
       print('   - ID: ${requisition.id}');
@@ -510,36 +578,39 @@ Future<Requisition?> _loadRequisitionForEdit(BuildContext context, int requisiti
       print('   - Qualification: ${requisition.qualification}');
       print('   - Essential Skills: ${requisition.essentialSkills}');
       print('   - Positions count: ${requisition.positions.length}');
-      
+
       // CRITICAL: Check file-related fields
       print('\n📄 FILE-RELATED FIELDS:');
       print('   - jobDescription: ${requisition.jobDescription}');
       print('   - jobDescriptionType: ${requisition.jobDescriptionType}');
       print('   - jobDocument: ${requisition.jobDocument}');
       print('   - jobDocumentUrl: ${requisition.jobDocumentUrl}');
-      print('   - jobDocuments array: ${requisition.jobDocuments?.length ?? 0} items');
-      
-      if (requisition.jobDocuments != null && requisition.jobDocuments!.isNotEmpty) {
+      print(
+        '   - jobDocuments array: ${requisition.jobDocuments?.length ?? 0} items',
+      );
+
+      if (requisition.jobDocuments != null &&
+          requisition.jobDocuments!.isNotEmpty) {
         print('   📎 Files in jobDocuments:');
         for (var i = 0; i < requisition.jobDocuments!.length; i++) {
           print('      ${i + 1}. ${requisition.jobDocuments![i]}');
         }
       }
-      
-      print('='*80);
+
+      print('=' * 80);
       print('');
     } else {
       print('\n❌ REQUISITION $requisitionId NOT FOUND!');
-      print('='*80);
+      print('=' * 80);
       print('');
     }
-    
+
     return requisition;
   } catch (e, stackTrace) {
     print('\n❌ ERROR IN _loadRequisitionForEdit:');
     print('   Error: $e');
     print('   Stack trace: $stackTrace');
-    print('='*80);
+    print('=' * 80);
     print('');
     return null;
   }

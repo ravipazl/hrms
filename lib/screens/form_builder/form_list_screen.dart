@@ -105,7 +105,7 @@ class _FormListScreenState extends State<FormListScreen> {
             );
           },
         ),
-        
+
         // Sort Menu
         PopupMenuButton<String>(
           icon: const Icon(Icons.sort),
@@ -113,51 +113,54 @@ class _FormListScreenState extends State<FormListScreen> {
           initialValue: _sortBy,
           onSelected: (value) {
             setState(() => _sortBy = value);
-            Provider.of<TemplateListProvider>(context, listen: false)
-                .sortTemplates(value);
+            Provider.of<TemplateListProvider>(
+              context,
+              listen: false,
+            ).sortTemplates(value);
           },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'date',
-              child: Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 18),
-                  SizedBox(width: 8),
-                  Text('Last Modified'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'name',
-              child: Row(
-                children: [
-                  Icon(Icons.sort_by_alpha, size: 18),
-                  SizedBox(width: 8),
-                  Text('Name'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'submissions',
-              child: Row(
-                children: [
-                  Icon(Icons.assignment_turned_in, size: 18),
-                  SizedBox(width: 8),
-                  Text('Submissions'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'views',
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, size: 18),
-                  SizedBox(width: 8),
-                  Text('Views'),
-                ],
-              ),
-            ),
-          ],
+          itemBuilder:
+              (context) => [
+                const PopupMenuItem(
+                  value: 'date',
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 18),
+                      SizedBox(width: 8),
+                      Text('Last Modified'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'name',
+                  child: Row(
+                    children: [
+                      Icon(Icons.sort_by_alpha, size: 18),
+                      SizedBox(width: 8),
+                      Text('Name'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'submissions',
+                  child: Row(
+                    children: [
+                      Icon(Icons.assignment_turned_in, size: 18),
+                      SizedBox(width: 8),
+                      Text('Submissions'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'views',
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility, size: 18),
+                      SizedBox(width: 8),
+                      Text('Views'),
+                    ],
+                  ),
+                ),
+              ],
         ),
       ],
       bottom: PreferredSize(
@@ -178,22 +181,26 @@ class _FormListScreenState extends State<FormListScreen> {
           decoration: InputDecoration(
             hintText: 'Search forms...',
             prefixIcon: const Icon(Icons.search),
-            suffixIcon: provider.searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      provider.searchTemplates('');
-                    },
-                  )
-                : null,
+            suffixIcon:
+                provider.searchQuery.isNotEmpty
+                    ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        provider.searchTemplates('');
+                      },
+                    )
+                    : null,
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
           ),
           onChanged: provider.searchTemplates,
         );
@@ -201,7 +208,10 @@ class _FormListScreenState extends State<FormListScreen> {
     );
   }
 
-  Widget _buildTemplateGrid(BuildContext context, TemplateListProvider provider) {
+  Widget _buildTemplateGrid(
+    BuildContext context,
+    TemplateListProvider provider,
+  ) {
     return RefreshIndicator(
       onRefresh: provider.refresh,
       child: GridView.builder(
@@ -229,9 +239,7 @@ class _FormListScreenState extends State<FormListScreen> {
   void _createNewForm(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const FormBuilderScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const FormBuilderScreen()),
     ).then((_) {
       // Refresh list when returning
       Provider.of<TemplateListProvider>(context, listen: false).refresh();
@@ -239,22 +247,13 @@ class _FormListScreenState extends State<FormListScreen> {
   }
 
   void _editTemplate(BuildContext context, String templateId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FormBuilderScreen(templateId: templateId),
-      ),
-    ).then((_) {
-      // Refresh list when returning
+    Navigator.pushNamed(context, '/form-builder/edit?id=$templateId').then((_) {
       Provider.of<TemplateListProvider>(context, listen: false).refresh();
     });
   }
 
   void _viewTemplate(BuildContext context, String templateId) {
-    // TODO: Navigate to template detail view or public form
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('View template: $templateId')),
-    );
+    Navigator.pushNamed(context, '/form-builder/view?id=$templateId');
   }
 
   Future<void> _deleteTemplate(
@@ -265,7 +264,8 @@ class _FormListScreenState extends State<FormListScreen> {
     final confirmed = await ConfirmationDialog.show(
       context,
       title: 'Delete Form',
-      message: 'Are you sure you want to delete "${template.title}"? This action cannot be undone.',
+      message:
+          'Are you sure you want to delete "${template.title}"? This action cannot be undone.',
       confirmText: 'Delete',
       isDangerous: true,
     );
@@ -309,9 +309,7 @@ class _TemplateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onEdit,
         borderRadius: BorderRadius.circular(12),
@@ -336,48 +334,52 @@ class _TemplateCard extends StatelessWidget {
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 20),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 18),
-                            SizedBox(width: 8),
-                            Text('Edit'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'view',
-                        child: Row(
-                          children: [
-                            Icon(Icons.visibility, size: 18),
-                            SizedBox(width: 8),
-                            Text('View'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'duplicate',
-                        child: Row(
-                          children: [
-                            Icon(Icons.content_copy, size: 18),
-                            SizedBox(width: 8),
-                            Text('Duplicate'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
+                    itemBuilder:
+                        (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, size: 18),
+                                SizedBox(width: 8),
+                                Text('Edit'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'view',
+                            child: Row(
+                              children: [
+                                Icon(Icons.visibility, size: 18),
+                                SizedBox(width: 8),
+                                Text('View'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'duplicate',
+                            child: Row(
+                              children: [
+                                Icon(Icons.content_copy, size: 18),
+                                SizedBox(width: 8),
+                                Text('Duplicate'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, size: 18, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                     onSelected: (value) {
                       switch (value) {
                         case 'edit':
@@ -397,47 +399,59 @@ class _TemplateCard extends StatelessWidget {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               // Description
-              if (template.description.isNotEmpty)
+              if ((template.description ?? '').isNotEmpty)
                 Text(
-                  template.description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
+                  template.description ?? '',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              
+
               const Spacer(),
-              
+
               // Stats row
               Row(
                 children: [
-                  _buildStat(Icons.description, '${template.fieldsCount} fields'),
+                  _buildStat(
+                    Icons.description,
+                    '${template.fieldsCount} fields',
+                  ),
                   const SizedBox(width: 16),
                   _buildStat(Icons.visibility, '${template.viewCount}'),
                   const SizedBox(width: 16),
-                  _buildStat(Icons.assignment_turned_in, '${template.submissionCount}'),
+                  _buildStat(
+                    Icons.assignment_turned_in,
+                    '${template.submissionCount}',
+                  ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Footer
               Row(
                 children: [
                   // Status badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: template.isPublished ? Colors.green[50] : Colors.orange[50],
+                      color:
+                          template.isPublished
+                              ? Colors.green[50]
+                              : Colors.orange[50],
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
-                        color: template.isPublished ? Colors.green[300]! : Colors.orange[300]!,
+                        color:
+                            template.isPublished
+                                ? Colors.green[300]!
+                                : Colors.orange[300]!,
                       ),
                     ),
                     child: Text(
@@ -445,19 +459,19 @@ class _TemplateCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: template.isPublished ? Colors.green[700] : Colors.orange[700],
+                        color:
+                            template.isPublished
+                                ? Colors.green[700]
+                                : Colors.orange[700],
                       ),
                     ),
                   ),
                   const Spacer(),
-                  
+
                   // Last updated
                   Text(
                     'Updated ${template.formattedUpdatedDate}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -473,13 +487,7 @@ class _TemplateCard extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: Colors.grey[600]),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
       ],
     );
   }

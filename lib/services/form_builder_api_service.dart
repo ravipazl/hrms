@@ -1,7 +1,5 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:cookie_jar/cookie_jar.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import '../models/form_builder/form_template.dart';
 import '../models/form_builder/form_data.dart' as form_models;
 import '../models/form_builder/form_submission.dart';
@@ -11,19 +9,13 @@ import '../utils/json_schema_generator.dart';
 /// FormBuilder API Service - handles all API communication with Django backend
 class FormBuilderAPIService {
   final Dio _dio;
-  final CookieJar? _cookieJar;
   static const String baseUrl = 'http://127.0.0.1:8000/form-builder/api';
 
-  FormBuilderAPIService()
-      : _dio = Dio(),
-        _cookieJar = CookieJar() {
-    try {
-      if (_cookieJar != null) {
-        _dio.interceptors.add(CookieManager(_cookieJar));
-      }
-    } catch (e) {
-      print('Cookie manager not available (web platform): $e');
-    }
+  FormBuilderAPIService() : _dio = Dio() {
+    _initializeDio();
+  }
+
+  void _initializeDio() {
     _dio.options.baseUrl = baseUrl;
     _dio.options.headers = {
       'Content-Type': 'application/json',
@@ -31,33 +23,14 @@ class FormBuilderAPIService {
     };
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
-  }
 
-  /// Get CSRF Token from cookies
-  Future<String?> _getCSRFToken() async {
-    if (_cookieJar == null) return null;
-    
-    try {
-      final cookies = await _cookieJar.loadForRequest(Uri.parse(baseUrl));
-      final csrfCookie = cookies.firstWhere(
-        (cookie) => cookie.name == 'csrftoken',
-        orElse: () => Cookie('', ''),
-      );
-      return csrfCookie.value.isNotEmpty ? csrfCookie.value : null;
-    } catch (e) {
-      print('Error getting CSRF token: $e');
-      return null;
-    }
-  }
-
-  /// Add CSRF token to headers for state-changing requests
-  Future<Options> _getOptionsWithCSRF() async {
-    final csrfToken = await _getCSRFToken();
-    return Options(
-      headers: {
-        if (csrfToken != null) 'X-CSRFToken': csrfToken,
-      },
-    );
+    // Add logging interceptor for debugging
+    _dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+      requestHeader: true,
+      responseHeader: false,
+    ));
   }
 
   // ========== TEMPLATE CRUD OPERATIONS ==========
@@ -115,32 +88,101 @@ class FormBuilderAPIService {
       throw Exception('Failed to load template for editing: $e');
     }
   }
+/// Save new template - FIXED: Match backend expected format
+/// Save new template - FIXED: Match backend expected format
+Future<FormTemplate> saveTemplate(form_models.FormData formData) async {
+  try {
+    // Generate unique name
+    final name = formData.name ?? formData.generateName();
 
-  /// Save new template
-  Future<FormTemplate> saveTemplate(form_models.FormData formData) async {
+    // Generate JSON Schema and UI Schema
+    final jsonSchema = JSONSchemaGenerator.generateJSONSchema(formData);
+    final uiSchema = JSONSchemaGenerator.generateUISchema(formData);
+
+    // ✅ FIXED: Create request data in the EXACT format backend expects
+    final requestData = {
+      'name': name,
+      'formTitle': formData.formTitle,
+      'formDescription': formData.formDescription,
+      'fields': formData.fields.map((field) => field.toJson()).toList(),
+      'headerConfig': formData.headerConfig.toJson(),
+      'react_form_data': formData.toJson(),
+      'json_schema': jsonSchema,
+      'ui_schema': uiSchema,
+    };
+
+    print('✅ Saving template with corrected format:');
+    print('formTitle: ${formData.formTitle}');
+    print('fields count: ${formData.fields.length}');
+
+    final response = await _dio.post(
+      '/save/',
+      data: requestData,
+    );
+
+    if (response.data['success'] == true) {
+      // ✅ FIXED: Safe response parsing with null checks
+      final responseData = response.data['data'];
+      if (responseData != null) {
+        return FormTemplate.fromJson(responseData);
+      } else {
+        throw Exception('No data in response');
+      }
+    } else {
+      throw Exception(response.data['message'] ?? 'Failed to save template');
+    }
+  } on DioException catch (e) {
+    print('❌ Dio Error during save:');
+    print('Message: ${e.message}');
+    print('Status: ${e.response?.statusCode}');
+    print('Data: ${e.response?.data}');
+    
+    if (e.response?.statusCode == 400) {
+      final errorData = e.response?.data;
+      if (errorData != null && errorData['errors'] != null) {
+        final errors = errorData['errors'] as List;
+        final errorMessages = errors.map((error) {
+          if (error is Map) {
+            return error.entries.map((entry) => '${entry.key}: ${entry.value.join(", ")}').join("; ");
+          }
+          return error.toString();
+        }).join("; ");
+        throw Exception('Validation errors: $errorMessages');
+      } else if (errorData != null && errorData['message'] != null) {
+        throw Exception(errorData['message']);
+      }
+    }
+    throw Exception('Network error: ${e.message}');
+  } catch (e, stackTrace) {
+    print('❌ Unexpected error during save: $e');
+    print('Stack trace: $stackTrace');
+    throw Exception('Failed to save template: $e');
+  }
+}
+
+  /// Alternative save method with simpler structure
+  Future<FormTemplate> saveTemplateSimple(form_models.FormData formData) async {
     try {
-      final options = await _getOptionsWithCSRF();
-
       // Generate unique name
       final name = formData.name ?? formData.generateName();
 
-      // Generate JSON Schema and UI Schema
-      final jsonSchema = JSONSchemaGenerator.generateJSONSchema(formData);
-      final uiSchema = JSONSchemaGenerator.generateUISchema(formData);
-
+      // Create a simplified request structure that matches backend expectations
       final requestData = {
         'name': name,
-        'title': formData.formTitle,
-        'description': formData.formDescription,
+        'formTitle': formData.formTitle,
+        'formDescription': formData.formDescription,
+        'fields': formData.fields.map((field) => field.toJson()).toList(),
+        // Optionally include the full react_form_data if needed
         'react_form_data': formData.toJson(),
-        'json_schema': jsonSchema,
-        'ui_schema': uiSchema,
       };
+
+      print('Saving template (simple format)');
+      print('Form Title: ${formData.formTitle}');
+      print('Fields: ${formData.fields.length}');
 
       final response = await _dio.post(
         '/save/',
         data: requestData,
-        options: options,
       );
 
       if (response.data['success'] == true) {
@@ -149,40 +191,37 @@ class FormBuilderAPIService {
         throw Exception(response.data['message'] ?? 'Failed to save template');
       }
     } on DioException catch (e) {
-      if (e.response?.statusCode == 400) {
-        final errorData = e.response?.data;
-        if (errorData != null && errorData['errors'] != null) {
-          final errors = errorData['errors'] as List;
-          throw Exception('Validation errors: ${errors.join(', ')}');
-        }
-      }
-      throw Exception('Network error: ${e.message}');
-    } catch (e) {
-      throw Exception('Failed to save template: $e');
+      print('Save error: ${e.response?.data}');
+      rethrow;
     }
   }
 
   /// Update existing template
+/// Update existing template - FIXED: Match backend expected format
   Future<FormTemplate> updateTemplate(String templateId, form_models.FormData formData) async {
     try {
-      final options = await _getOptionsWithCSRF();
-
       // Generate JSON Schema and UI Schema
       final jsonSchema = JSONSchemaGenerator.generateJSONSchema(formData);
       final uiSchema = JSONSchemaGenerator.generateUISchema(formData);
 
+      // ✅ FIXED: Use the same format as saveTemplate
       final requestData = {
-        'title': formData.formTitle,
-        'description': formData.formDescription,
+        'formTitle': formData.formTitle,
+        'formDescription': formData.formDescription,
+        'fields': formData.fields.map((field) => field.toJson()).toList(),
+        'headerConfig': formData.headerConfig.toJson(),
         'react_form_data': formData.toJson(),
         'json_schema': jsonSchema,
         'ui_schema': uiSchema,
       };
 
+      print('✅ Updating template with corrected format:');
+      print('formTitle: ${formData.formTitle}');
+      print('fields count: ${formData.fields.length}');
+
       final response = await _dio.put(
         '/templates/$templateId/',
         data: requestData,
-        options: options,
       );
 
       if (response.data['success'] == true) {
@@ -191,6 +230,10 @@ class FormBuilderAPIService {
         throw Exception(response.data['message'] ?? 'Failed to update template');
       }
     } on DioException catch (e) {
+      print('❌ Dio Error during update:');
+      print('Message: ${e.message}');
+      print('Status: ${e.response?.statusCode}');
+      print('Data: ${e.response?.data}');
       throw Exception('Network error: ${e.message}');
     } catch (e) {
       throw Exception('Failed to update template: $e');
@@ -200,12 +243,7 @@ class FormBuilderAPIService {
   /// Delete template
   Future<void> deleteTemplate(String templateId) async {
     try {
-      final options = await _getOptionsWithCSRF();
-
-      final response = await _dio.delete(
-        '/templates/$templateId/',
-        options: options,
-      );
+      final response = await _dio.delete('/templates/$templateId/');
 
       if (response.data['success'] != true) {
         throw Exception(response.data['message'] ?? 'Failed to delete template');
@@ -222,8 +260,6 @@ class FormBuilderAPIService {
   /// Submit form data
   Future<String> submitForm(String templateId, Map<String, dynamic> formData) async {
     try {
-      final options = await _getOptionsWithCSRF();
-
       final response = await _dio.post(
         '/submit/$templateId/',
         data: {
@@ -233,7 +269,6 @@ class FormBuilderAPIService {
             'platform': 'Flutter',
           },
         },
-        options: options,
       );
 
       if (response.data['success'] == true) {
@@ -242,6 +277,8 @@ class FormBuilderAPIService {
         throw Exception(response.data['message'] ?? 'Failed to submit form');
       }
     } on DioException catch (e) {
+      print('Submit form error: ${e.message}');
+      print('Response: ${e.response?.data}');
       throw Exception('Network error: ${e.message}');
     } catch (e) {
       throw Exception('Failed to submit form: $e');
@@ -289,94 +326,6 @@ class FormBuilderAPIService {
     }
   }
 
-  // ========== FILE UPLOAD OPERATIONS ==========
-
-  /// Upload single file
-  Future<FileMetadata> uploadFile(File file, String fieldId) async {
-    try {
-      final options = await _getOptionsWithCSRF();
-
-      final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(file.path, filename: file.path.split('/').last),
-        'field_id': fieldId,
-      });
-
-      final response = await _dio.post(
-        '/upload-file/',
-        data: formData,
-        options: options,
-      );
-
-      if (response.data['success'] == true) {
-        return FileMetadata.fromJson(response.data['file']);
-      } else {
-        throw Exception(response.data['message'] ?? 'Failed to upload file');
-      }
-    } on DioException catch (e) {
-      throw Exception('Network error: ${e.message}');
-    } catch (e) {
-      throw Exception('Failed to upload file: $e');
-    }
-  }
-
-  /// Upload multiple files
-  Future<List<FileMetadata>> uploadFiles(List<File> files, String fieldId) async {
-    final List<FileMetadata> uploadedFiles = [];
-
-    for (final file in files) {
-      try {
-        final metadata = await uploadFile(file, fieldId);
-        uploadedFiles.add(metadata);
-      } catch (e) {
-        print('Failed to upload ${file.path}: $e');
-        // Continue with other files
-      }
-    }
-
-    return uploadedFiles;
-  }
-
-  /// Get file view URL
-  String getFileViewUrl(String accessToken, String storedPath) {
-    return '$baseUrl/view-file/?token=$accessToken&path=${Uri.encodeComponent(storedPath)}';
-  }
-
-  /// Get file download URL
-  String getFileDownloadUrl(String accessToken, String storedPath) {
-    return '$baseUrl/download-file/?token=$accessToken&path=${Uri.encodeComponent(storedPath)}';
-  }
-
-  // ========== VALIDATION OPERATIONS ==========
-
-  /// Validate form data against schema
-  Future<Map<String, dynamic>> validateFormData(
-    String templateId,
-    Map<String, dynamic> formData,
-  ) async {
-    try {
-      final options = await _getOptionsWithCSRF();
-
-      final response = await _dio.post(
-        '/validate/',
-        data: {
-          'template_id': templateId,
-          'form_data': formData,
-        },
-        options: options,
-      );
-
-      if (response.data['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      } else {
-        throw Exception(response.data['message'] ?? 'Validation failed');
-      }
-    } on DioException catch (e) {
-      throw Exception('Network error: ${e.message}');
-    } catch (e) {
-      throw Exception('Failed to validate form: $e');
-    }
-  }
-
   // ========== UTILITY METHODS ==========
 
   /// Build query string from map
@@ -393,6 +342,24 @@ class FormBuilderAPIService {
       return false;
     }
   }
+
+
+  /// Test API data format compatibility
+Future<void> testDataFormat(form_models.FormData formData) async {
+  final testData = {
+    'name': formData.name ?? formData.generateName(),
+    'formTitle': formData.formTitle,
+    'formDescription': formData.formDescription,
+    'fields': formData.fields.map((field) => field.toJson()).toList(),
+    'headerConfig': formData.headerConfig.toJson(),
+  };
+  
+  print('🔍 Testing data format:');
+  print('Keys: ${testData.keys.toList()}');
+  print('formTitle: ${testData['formTitle']}');
+  print('fields type: ${testData['fields'].runtimeType}');
+  print('fields length: ${(testData['fields'] as List).length}');
+}
 
   /// Generate public form URL
   String generatePublicFormUrl(String templateId) {

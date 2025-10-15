@@ -348,45 +348,48 @@ class FormBuilderProvider extends ChangeNotifier {
     }
   }
 
-  /// Save template to server
-  Future<bool> saveTemplate() async {
-    if (_isSaving) return false;
-    
-    _isSaving = true;
-    _error = null;
-    notifyListeners();
+/// Save template to server - UPDATED
+Future<bool> saveTemplate() async {
+  if (_isSaving) return false;
+  
+  _isSaving = true;
+  _error = null;
+  notifyListeners();
 
-    try {
-      final formData = FormData(
-        formTitle: _formTitle,
-        formDescription: _formDescription,
-        headerConfig: _headerConfig,
-        fields: _fields,
+  try {
+    final formData = FormData(
+      formTitle: _formTitle,
+      formDescription: _formDescription,
+      headerConfig: _headerConfig,
+      fields: _fields,
+    );
+
+    // ✅ Optional: Test data format before sending
+    await _apiService.testDataFormat(formData);
+
+    if (_currentTemplate != null) {
+      // Update existing
+      final updated = await _apiService.updateTemplate(
+        _currentTemplate!.id,
+        formData,
       );
-
-      if (_currentTemplate != null) {
-        // Update existing
-        final updated = await _apiService.updateTemplate(
-          _currentTemplate!.id,
-          formData,
-        );
-        _currentTemplate = updated;
-      } else {
-        // Create new
-        final created = await _apiService.saveTemplate(formData);
-        _currentTemplate = created;
-      }
-
-      _error = null;
-      return true;
-    } catch (e) {
-      _error = e.toString();
-      return false;
-    } finally {
-      _isSaving = false;
-      notifyListeners();
+      _currentTemplate = updated;
+    } else {
+      // Create new
+      final created = await _apiService.saveTemplate(formData);
+      _currentTemplate = created;
     }
+
+    _error = null;
+    return true;
+  } catch (e) {
+    _error = e.toString();
+    return false;
+  } finally {
+    _isSaving = false;
+    notifyListeners();
   }
+}
 
   /// Reset form to empty state
   void resetForm() {

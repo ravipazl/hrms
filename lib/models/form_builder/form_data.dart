@@ -32,11 +32,18 @@ class FormData {
     return FormData(
       formTitle: json['formTitle'] as String? ?? 'Untitled Form',
       formDescription: json['formDescription'] as String? ?? '',
-      headerConfig: json['headerConfig'] != null
-          ? HeaderConfig.fromJson(json['headerConfig'] as Map<String, dynamic>)
-          : HeaderConfig.defaultConfig(),
-      fields: (json['fields'] as List<dynamic>?)
-              ?.map((fieldJson) => FormField.fromJson(fieldJson as Map<String, dynamic>))
+      headerConfig:
+          json['headerConfig'] != null
+              ? HeaderConfig.fromJson(
+                json['headerConfig'] as Map<String, dynamic>,
+              )
+              : HeaderConfig.defaultConfig(),
+      fields:
+          (json['fields'] as List<dynamic>?)
+              ?.map(
+                (fieldJson) =>
+                    FormField.fromJson(fieldJson as Map<String, dynamic>),
+              )
               .toList() ??
           [],
       name: json['name'] as String?,
@@ -82,6 +89,24 @@ class FormData {
     return '${cleanTitle}_$timestamp';
   }
 
+  /// Validate form data integrity
+  List<String> validate() {
+    final errors = <String>[];
+
+    if (formTitle.trim().isEmpty) {
+      errors.add('Form title is required');
+    }
+
+    for (final field in fields) {
+      final fieldErrors = field.validate();
+      if (fieldErrors.isNotEmpty) {
+        errors.addAll(fieldErrors.map((e) => 'Field ${field.label}: $e'));
+      }
+    }
+
+    return errors;
+  }
+
   /// Get field by ID
   FormField? getFieldById(String fieldId) {
     try {
@@ -109,9 +134,10 @@ class FormData {
 
   /// Update field
   FormData updateField(String fieldId, FormField updatedField) {
-    final newFields = fields.map((field) {
-      return field.id == fieldId ? updatedField : field;
-    }).toList();
+    final newFields =
+        fields.map((field) {
+          return field.id == fieldId ? updatedField : field;
+        }).toList();
     return copyWith(fields: newFields);
   }
 
@@ -138,11 +164,11 @@ class FormData {
     if (field == null) return this;
 
     final index = getFieldIndex(fieldId);
-    final duplicatedField = FormField.fromJson(field.toJson())
-      ..copyWith(
-        id: 'field_${DateTime.now().millisecondsSinceEpoch}_${fieldId.substring(0, 8)}',
-        label: '${field.label} (Copy)',
-      );
+    final duplicatedField = FormField.fromJson(field.toJson())..copyWith(
+      id:
+          'field_${DateTime.now().millisecondsSinceEpoch}_${fieldId.substring(0, 8)}',
+      label: '${field.label} (Copy)',
+    );
 
     return addField(duplicatedField, position: index + 1);
   }

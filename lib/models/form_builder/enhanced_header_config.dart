@@ -1,6 +1,6 @@
 /// Enhanced Header configuration for forms with full React parity
 class HeaderConfig {
-  // Core Settings
+  // Core Settings 
   final bool enabled;
   
   // Logo Configuration

@@ -9,7 +9,7 @@ class EmptyStateWidget extends StatelessWidget {
   
   const EmptyStateWidget({
     super.key,
-    required this.title,
+    required this.title, 
     required this.message,
     this.icon = Icons.inbox,
     this.onAction,

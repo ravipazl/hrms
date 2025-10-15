@@ -226,7 +226,7 @@ class MyApp extends StatelessWidget {
             case '/form-builder/edit':
               final formId = queryParams['id'];
               if (formId == null) {
-                return MaterialPageRoute(
+                return MaterialPageRoute( 
                   settings: settings,
                   builder:
                       (context) => _buildErrorScreen(

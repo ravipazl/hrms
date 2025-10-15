@@ -17,7 +17,7 @@ class FileMetadata {
   });
 
   /// Create from JSON (backend response)
-  factory FileMetadata.fromJson(Map<String, dynamic> json) {
+  factory FileMetadata.fromJson(Map<String, dynamic> json) { 
     return FileMetadata(
       name: json['name'] as String,
       size: json['size'] as int,

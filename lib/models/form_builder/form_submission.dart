@@ -1,5 +1,5 @@
 /// FormSubmission model - represents a submitted form response
-class FormSubmission {
+class FormSubmission { 
   final String id;
   final String templateId;
   final Map<String, dynamic> formData;

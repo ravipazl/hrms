@@ -4,7 +4,7 @@ import '../../../providers/form_builder_provider.dart';
 import '../../../models/form_builder/form_field.dart' as form_models;
 import '../header/form_header_preview.dart';
 import 'canvas_field_renderer.dart';
-
+ 
 class InteractiveFormCanvas extends StatelessWidget {
   const InteractiveFormCanvas({super.key});
 

@@ -8,7 +8,7 @@ class JSONSchemaGenerator {
   static Map<String, dynamic> generateJSONSchema(FormData formData) {
     final properties = <String, dynamic>{};
     final required = <String>{};
-
+ 
     for (final field in formData.fields) {
       // Add to required list if field is required
       if (field.required) {

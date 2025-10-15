@@ -15,7 +15,7 @@ class PreviewSignatureField extends StatefulWidget {
     required this.onChanged,
     this.hasError = false,
   });
-
+ 
   @override
   State<PreviewSignatureField> createState() => _PreviewSignatureFieldState();
 }

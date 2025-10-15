@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/form_builder_provider.dart';
 import '../../../models/form_builder/form_field.dart' as form_models;
-
+ 
 class FieldSidebar extends StatelessWidget {
   const FieldSidebar({super.key});
 

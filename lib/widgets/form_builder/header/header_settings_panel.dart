@@ -787,7 +787,7 @@ class _SwitchTile extends StatelessWidget {
     );
   }
 }
-
+ 
 class _AlignmentButtons extends StatelessWidget {
   final String label;
   final String value;

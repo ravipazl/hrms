@@ -10,7 +10,7 @@ class RichTextConverter {
     for (var element in slateContent) {
       _convertSlateElement(element as Map<String, dynamic>, operations, embeddedFields);
     }
-    
+     
     // Create document from operations
     if (operations.isEmpty) {
       operations.add({'insert': '\n'});

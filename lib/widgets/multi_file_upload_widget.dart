@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import '../models/file_preview.dart';
-
+ 
 /// Multi-file upload widget supporting multiple document uploads
 /// Based on the React multi-file upload implementation
 class MultiFileUploadWidget extends StatefulWidget {

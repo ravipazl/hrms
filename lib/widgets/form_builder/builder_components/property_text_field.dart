@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-
+ 
 /// Stateful Text Field for Properties Panel
 /// Prevents cursor reset issues by maintaining controller state
 class PropertyTextField extends StatefulWidget {

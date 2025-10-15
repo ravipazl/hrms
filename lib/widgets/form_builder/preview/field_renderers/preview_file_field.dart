@@ -33,7 +33,7 @@ class _PreviewFileFieldState extends State<PreviewFileField> {
       _selectedFiles = List<PlatformFile>.from(widget.value);
     }
   }
-
+ 
   Future<void> _pickFiles() async {
     try {
       final allowMultiple = widget.field.props['multiple'] ?? false;

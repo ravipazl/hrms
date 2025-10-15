@@ -1,7 +1,7 @@
 /// File metadata returned from backend after upload
 class FileMetadata {
   final String name;
-  final int size;
+  final int size; 
   final String type;
   final String storedPath;
   final String accessToken;

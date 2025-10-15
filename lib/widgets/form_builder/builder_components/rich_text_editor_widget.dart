@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../models/form_builder/form_field.dart' as form_models;
 import '../../../models/form_builder/rich_text_config.dart';
 import '../../../utils/rich_text_converter.dart';
-
+ 
 /// Rich Text Editor Widget for Form Builder (Builder Mode)
 /// Uses flutter_quill 11.4.2 with simplified embedded field approach
 class RichTextEditorWidget extends StatefulWidget {

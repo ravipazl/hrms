@@ -440,6 +440,8 @@ class RequisitionApiService {
     }
   }
 
+  
+
   /// Update requisition status - EXACTLY like workflow_api_service.dart
   Future<Map<String, dynamic>> updateRequisitionStatus(int id, String status) async {
     try {
@@ -603,7 +605,7 @@ class RequisitionApiService {
           'requirements_requisition_replacement': position.typeRequisition == '2' 
               ? (position.requirementsRequisitionReplacement ?? '')
               : '',
-          'requisition_quantity': position.requisitionQuantity,
+          'requisition_quantity': position.requisitionQuantity.toString(),
           'vacancy_to_be_filled_on': position.vacancyToBeFilled,
           'employment_type': position.employmentType ?? '',
           'employee_name': position.employeeName ?? '',

@@ -12,7 +12,7 @@ class TableFieldBuilderClean extends StatelessWidget {
     super.key,
     required this.field,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     // Get configuration

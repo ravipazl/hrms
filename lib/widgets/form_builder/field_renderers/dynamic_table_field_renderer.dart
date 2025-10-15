@@ -2218,7 +2218,7 @@ class _ColumnSettingsFormState extends State<ColumnSettingsForm> {
     );
   }
 }
-
+ 
 /// Stateful TextField for Table Cells
 /// Prevents cursor reset by maintaining its own controller
 class _TableCellTextField extends StatefulWidget {

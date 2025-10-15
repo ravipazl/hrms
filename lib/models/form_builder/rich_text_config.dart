@@ -2,7 +2,7 @@
 class EmbeddedField {
   final String id;
   final String fieldType;
-  final String label;
+  final String label; 
   final Map<String, dynamic> props;
 
   EmbeddedField({

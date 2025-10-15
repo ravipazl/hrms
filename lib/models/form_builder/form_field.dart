@@ -39,7 +39,7 @@ extension FieldTypeExtension on FieldType {
 class FormField {
   final String id;
   final FieldType type;
-  final String label;
+  final String label; 
   final String? placeholder;
   final bool required;
   final int width; // 1-12 (grid columns)

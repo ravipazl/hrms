@@ -129,7 +129,7 @@ class FormData {
     } else {
       newFields.add(field);
     }
-    return copyWith(fields: newFields);
+    return copyWith(fields: newFields); 
   }
 
   /// Update field

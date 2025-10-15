@@ -16,7 +16,7 @@ class PreviewRichTextField extends StatefulWidget {
     required this.onChanged,
     this.hasError = false,
   });
-
+ 
   @override
   State<PreviewRichTextField> createState() => _PreviewRichTextFieldState();
 }

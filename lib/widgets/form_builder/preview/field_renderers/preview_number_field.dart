@@ -9,7 +9,7 @@ class PreviewNumberField extends StatefulWidget {
   final dynamic value;
   final Function(dynamic) onChanged;
   final bool hasError;
-
+ 
   const PreviewNumberField({
     super.key,
     required this.field,

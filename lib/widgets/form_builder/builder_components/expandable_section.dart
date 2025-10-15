@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+ 
 /// Expandable section widget for organizing field settings
 class ExpandableSection extends StatefulWidget {
   final String title;

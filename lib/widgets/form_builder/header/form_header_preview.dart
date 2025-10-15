@@ -15,7 +15,7 @@ class FormHeaderPreview extends StatelessWidget {
     this.headerConfig,
     this.mode,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     final config = headerConfig ?? HeaderConfig.defaultConfig();

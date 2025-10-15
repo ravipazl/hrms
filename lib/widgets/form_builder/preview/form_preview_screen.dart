@@ -10,7 +10,7 @@ class FormPreviewScreen extends StatefulWidget {
   final String? formDescription;
   final HeaderConfig? headerConfig;
   final Function(Map<String, dynamic>)? onSubmit;
-  
+   
   const FormPreviewScreen({
     super.key,
     required this.fields,

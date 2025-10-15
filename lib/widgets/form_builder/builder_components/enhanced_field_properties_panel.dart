@@ -6,7 +6,7 @@ import 'expandable_section.dart';
 import 'default_value_input.dart';
 import 'enhanced_table_settings_panel.dart';
 import 'property_text_field.dart'; // NEW: Import the stateful text field
-
+ 
 /// Enhanced field properties panel with full customization
 class EnhancedFieldPropertiesPanel extends StatelessWidget {
   const EnhancedFieldPropertiesPanel({super.key});

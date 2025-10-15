@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../providers/form_builder_provider.dart';
 import '../../../models/form_builder/form_field.dart' as form_models;
 import 'expandable_section.dart';
-
+ 
 /// Enhanced Table Field Settings Panel - Configuration-Based Approach
 /// Users configure table structure here, canvas shows preview only
 class EnhancedTableSettingsPanel extends StatefulWidget {

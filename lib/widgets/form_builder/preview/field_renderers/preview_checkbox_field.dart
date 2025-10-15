@@ -7,7 +7,7 @@ class PreviewCheckboxField extends StatelessWidget {
   final dynamic value;
   final Function(dynamic) onChanged;
   final bool hasError;
-
+ 
   const PreviewCheckboxField({
     super.key,
     required this.field,

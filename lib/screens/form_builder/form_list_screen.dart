@@ -59,7 +59,7 @@ class _FormListScreenState extends State<FormListScreen> {
             if (provider.templates.isEmpty) {
               if (provider.searchQuery.isNotEmpty) {
                 return EmptyStateWidget(
-                  title: 'No Results Found',
+                  title: 'No Results Found', 
                   message: 'No templates match "${provider.searchQuery}"',
                   icon: Icons.search_off,
                   onAction: () {

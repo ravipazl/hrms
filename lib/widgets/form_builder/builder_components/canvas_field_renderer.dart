@@ -11,7 +11,7 @@ class CanvasFieldRenderer {
   static Widget renderField(form_models.FormField field) {
     return renderFieldWithIndex(field, 0);
   }
-
+ 
   static Widget renderFieldWithIndex(form_models.FormField field, int index) {
     Widget fieldWidget;
 

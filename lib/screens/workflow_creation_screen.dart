@@ -131,8 +131,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
               // Error banner
               if (provider.error != null) _buildErrorBanner(provider),
               
-              // ✅ FIX: Connection mode banner - persists until Cancel clicked
-              if (provider.connectionMode) _buildConnectionBanner(provider),
+              
               
               // Main content
               Expanded(
@@ -260,40 +259,13 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     );
   }
 
-  Widget _buildConnectionBanner(WorkflowProvider provider) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      color: Colors.blue.shade100,
-      child: Row(
-        children: [
-          const Icon(Icons.link, color: Colors.blue),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Connection Mode: Click on a target node to create connection. Click Cancel or press ESC to exit.',
-              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
-            ),
-          ),
-          TextButton(
-            onPressed: () => provider.cancelConnection(),
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.blue,
-            ),
-            child: const Text('Cancel Connection'),
-          ),
-        ],
-      ),
-    );
-  }
-
+  
   Widget _buildLeftSidebar(WorkflowProvider provider) {
     return Container(
       width: 320,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey.shade200)),
+        border: Border(right: BorderSide(color: const Color.fromARGB(255, 247, 245, 245))),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(top: 10, left: 24, right: 24, bottom: 24),

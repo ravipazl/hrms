@@ -313,15 +313,6 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _workflowExecution?.workflowConfigured == true
-                      ? 'Workflow is active - Status managed by workflow'
-                      : 'Review requisition details and update approval status',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -398,7 +389,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Requisition Verification ${_workflowExecution?.workflowConfigured == true ? '🔒' : ''}',
+            'Requisition Verification ${_workflowExecution?.workflowConfigured == true ? '' : ''}',
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
           ),
           const SizedBox(height: 8),
@@ -510,7 +501,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            canSetup ? '⚠️ Workflow Setup Required' : 'Workflow Setup',
+            canSetup ? ' Workflow Setup Required' : 'Workflow Setup',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -626,15 +617,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
             ),
           ],
         ),
-        if (!canSetup)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Approve requisition to enable workflow setup',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
-          ),
+        
       ],
     );
   }
@@ -1342,7 +1325,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
       child: Center(
-        child: Text('✅ Workflow Approval Status',
+        child: Text(' Workflow Approval Status',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
       ),
     );

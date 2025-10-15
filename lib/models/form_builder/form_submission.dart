@@ -9,7 +9,7 @@ class FormSubmission {
 
   FormSubmission({
     required this.id,
-    required this.templateId,
+    required this.templateId, 
     required this.formData,
     required this.metadata,
     required this.submittedAt,

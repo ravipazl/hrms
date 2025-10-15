@@ -18,7 +18,7 @@ class WorkflowCanvas extends StatefulWidget {
   final bool readonly;
 
   const WorkflowCanvas({
-    super.key,
+    Key? key,
     required this.nodes,
     required this.edges,
     required this.onNodeDrag,
@@ -30,7 +30,7 @@ class WorkflowCanvas extends StatefulWidget {
     this.onCancelConnection,
     this.onDeleteEdge,
     this.readonly = false,
-  });
+  }) : super(key: key);
 
   @override
   State<WorkflowCanvas> createState() => _WorkflowCanvasState();

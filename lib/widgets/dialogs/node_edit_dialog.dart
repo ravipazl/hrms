@@ -10,14 +10,14 @@ class NodeEditDialog extends StatefulWidget {
   final Function(String nodeId) onDeleteNode;
 
   const NodeEditDialog({
-    super.key,
+    Key? key,
     required this.node,
     required this.nodeId,
     required this.availableEmployees,
     required this.loadingEmployees,
     required this.onUpdateNode,
     required this.onDeleteNode,
-  });
+  }) : super(key: key);
 
   @override
   State<NodeEditDialog> createState() => _NodeEditDialogState();
@@ -41,7 +41,7 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
     _commentController = TextEditingController(
       text: widget.node.data.comment ?? '',
     );
-    _selectedEmployeeId = widget.node.data.selectedEmployeeId;
+    _selectedEmployeeId = widget?.node?.data?.selectedEmployeeId;
   }
 
   @override
@@ -338,7 +338,7 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
                 ),
               )
             : DropdownButtonFormField<String>(
-                initialValue: _selectedEmployeeId?.toString(),
+                value: _selectedEmployeeId?.toString(),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),

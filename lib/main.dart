@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hrms/models/requisition.dart';
 import 'package:hrms/providers/requisition_provider.dart';
+import 'package:hrms/screens/form_builder/form_builder_screen.dart';
 import 'package:hrms/screens/requisition_form_screen.dart';
 import 'package:hrms/screens/requisition_view_screen.dart';
 import 'package:hrms/screens/approval_action_screen.dart';
@@ -8,12 +9,9 @@ import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
 import 'providers/workflow_provider.dart';
-import 'providers/form_builder_provider.dart';
 import 'providers/template_list_provider.dart';
 import 'screens/workflow_creation_screen.dart';
 import 'screens/form_builder/form_list_screen.dart';
-// import 'screens/home_screen.dart';
-import 'screens/form_builder/form_builder_screen.dart';
 
 void main() {
   setPathUrlStrategy();
@@ -21,7 +19,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   Widget _buildErrorScreen(String title, String message) {
     return Scaffold(
@@ -74,7 +72,6 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => WorkflowProvider()),
         ChangeNotifierProvider(create: (_) => RequisitionProvider()),
-        ChangeNotifierProvider(create: (_) => FormBuilderProvider()),
       ],
       child: MaterialApp(
         title: 'HRMS Workflow Management',
@@ -226,7 +223,7 @@ class MyApp extends StatelessWidget {
             case '/form-builder/edit':
               final formId = queryParams['id'];
               if (formId == null) {
-                return MaterialPageRoute( 
+                return MaterialPageRoute(
                   settings: settings,
                   builder:
                       (context) => _buildErrorScreen(

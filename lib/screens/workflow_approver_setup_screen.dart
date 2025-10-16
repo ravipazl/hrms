@@ -387,62 +387,104 @@ class _WorkflowApproverSetupScreenState
         border: Border(right: BorderSide(color: Colors.grey.shade200)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Template Information',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
             // Template Name (read-only)
+            const Text(
+              'Template Name *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(text: provider.template.name),
-              decoration: const InputDecoration(
-                labelText: 'Template Name',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Description (read-only)
+            const Text(
+              'Description',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(text: provider.template.description),
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
-              maxLines: 2,
+              maxLines: 3,
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Workflow Stage (read-only)
+            const Text(
+              'Workflow Stage *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(
                 text: provider.selectedStage?.description ?? provider.template.stage,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Workflow Stage',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Department (read-only)
+            const Text(
+              'Department',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(
                 text: provider.template.departmentName?.isNotEmpty == true
@@ -451,14 +493,18 @@ class _WorkflowApproverSetupScreenState
                         ? 'Department ${provider.template.department}'
                         : 'All Departments',
               ),
-              decoration: const InputDecoration(
-                labelText: 'Department',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 24),
 

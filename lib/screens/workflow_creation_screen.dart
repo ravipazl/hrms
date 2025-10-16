@@ -156,7 +156,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
 
   Widget _buildHeader(WorkflowProvider provider) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),

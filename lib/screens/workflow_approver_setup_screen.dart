@@ -218,56 +218,46 @@ class _WorkflowApproverSetupScreenState
     }
   }
 
-  /// ✅ NEW: Show detailed error with dialog
+  /// ✅ UPDATED: Show error as SnackBar (toast) at the top
   void _showDetailedError(String message) {
     setState(() {
       _error = message;
     });
 
-    // Also show in dialog for better visibility
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error, color: Colors.red.shade700),
-            const SizedBox(width: 8),
-            const Text('Validation Error'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-
-    // Also show snackbar
+    // Show as SnackBar (toast) at the top
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message.split('\n').first), // Show first line only
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Details',
-          textColor: Colors.white,
-          onPressed: () {
-            // Dialog already shown
-          },
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Validation Error',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(top: 16, left: 16, right: 16, bottom: MediaQuery.of(context).size.height - 200),
+        padding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );

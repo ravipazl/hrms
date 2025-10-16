@@ -445,9 +445,11 @@ class _WorkflowApproverSetupScreenState
             // Department (read-only)
             TextField(
               controller: TextEditingController(
-                text: provider.template.department != null
-                    ? 'Department ID: ${provider.template.department}'
-                    : 'Global Template',
+                text: provider.template.departmentName?.isNotEmpty == true
+                    ? provider.template.departmentName!
+                    : provider.template.department != null
+                        ? 'Department ${provider.template.department}'
+                        : 'All Departments',
               ),
               decoration: const InputDecoration(
                 labelText: 'Department',

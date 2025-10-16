@@ -388,6 +388,7 @@ class WorkflowApiService {
         description: dbTemplate['stage_name'] ?? '',
       ),
       department: dbTemplate['department'],
+      departmentName: dbTemplate['department_name'],
       isGlobalDefault: dbTemplate['is_default'] ?? false,
       nodes: uiNodes,
       edges: uiEdges,

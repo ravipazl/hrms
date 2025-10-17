@@ -76,15 +76,7 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
           width: 2200,
           height: 1400,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade100,
-                Colors.blue.shade50,
-                Colors.indigo.shade50,
-              ],
-            ),
+            color: Colors.blue.shade50,
           ),
           child: Stack(
             children: [

@@ -37,8 +37,15 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedAction = widget.suggestedAction;
+    // Don't set default action - user must select one
     _loadWorkflowStep();
+    
+    // Add listener to comments controller to update button state
+    _commentsController.addListener(() {
+      setState(() {
+        // Trigger rebuild when comments change
+      });
+    });
   }
 
   @override
@@ -89,14 +96,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
         _availableOutcomes = outcomes;
       });
 
-      // Set default action if current not in list
-      if (!outcomes.any((o) => o.value == _selectedAction)) {
-        if (outcomes.isNotEmpty) {
-          setState(() {
-            _selectedAction = outcomes.first.value;
-          });
-        }
-      }
+      // Don't set default action - user must select one explicitly
     } catch (e) {
       print('❌ Error loading outcomes: $e');
     }
@@ -148,6 +148,14 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    // Validate action is selected
+    if (_selectedAction.isEmpty) {
+      setState(() {
+        _error = 'Please select an action (Approved, Hold, or Rejected)';
+      });
+      return;
+    }
+
     // Validate comments
     if (_commentsController.text.trim().isEmpty) {
       setState(() {
@@ -307,8 +315,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
                   _buildErrorMessage(),
                 _buildRequisitionDetailsCard(),
                 const SizedBox(height: 16),
-                if (_selectedAction == 'approved' &&
-                    _positionApprovals.isNotEmpty) ...[
+                if (_positionApprovals.isNotEmpty) ...[
                   _buildPositionApprovalCard(),
                   const SizedBox(height: 16),
                 ],
@@ -1084,10 +1091,18 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
           () => ActionOutcome(
             value: _selectedAction,
             label: _selectedAction,
-            color: Colors.blue,
+            color: Colors.grey,
             icon: '❓',
           ),
     );
+
+    // Button is enabled only if:
+    // 1. Not submitting
+    // 2. Action is selected
+    // 3. Comments are not empty
+    final isButtonEnabled = !_submitting && 
+                           _selectedAction.isNotEmpty && 
+                           _commentsController.text.trim().isNotEmpty;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -1098,13 +1113,12 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
         ),
         const SizedBox(width: 12),
         ElevatedButton(
-          onPressed:
-              _submitting || _commentsController.text.trim().isEmpty
-                  ? null
-                  : _handleSubmit,
+          onPressed: isButtonEnabled ? _handleSubmit : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: selectedOutcome.color,
             foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.grey.shade300,
+            disabledForegroundColor: Colors.grey.shade600,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           ),
           child:
@@ -1126,7 +1140,11 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
                       Text('Processing...'),
                     ],
                   )
-                  : Text('${selectedOutcome.label} Step'),
+                  : Text(
+                      _selectedAction.isEmpty 
+                          ? 'Select Action First'
+                          : '${selectedOutcome.label} Step',
+                    ),
         ),
       ],
     );

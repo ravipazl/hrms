@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class ApiConfig {
   // API Configuration - Based on actual Django URL structure
   static const String baseUrl = 'http://127.0.0.1:8000/api';
-  static const String fallbackUrl = 'http://localhost:8000/api'; 
+  static const String fallbackUrl = 'http://127.0.0.1:8000/api'; 
   
   // Test if API is available
   static Future<bool> testConnection() async {

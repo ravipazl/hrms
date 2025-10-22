@@ -37,9 +37,9 @@ class _FormListScreenState extends State<FormListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TemplateListProvider()..loadTemplates(),
-      child: Scaffold(
+    // Provider is already created in FormListScreenWrapper in main.dart
+    // So we just return the Scaffold directly
+    return Scaffold(
         backgroundColor: Colors.grey[100],
         appBar: _buildAppBar(context),
         body: Consumer<TemplateListProvider>(
@@ -86,7 +86,6 @@ class _FormListScreenState extends State<FormListScreen> {
           icon: const Icon(Icons.add),
           label: const Text('New Form'),
         ),
-      ),
     );
   }
 
@@ -237,10 +236,8 @@ class _FormListScreenState extends State<FormListScreen> {
   }
 
   void _createNewForm(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const FormBuilderScreen()),
-    ).then((_) {
+    // Use named route which includes provider setup
+    Navigator.pushNamed(context, '/form-builder/create').then((_) {
       // Refresh list when returning
       Provider.of<TemplateListProvider>(context, listen: false).refresh();
     });

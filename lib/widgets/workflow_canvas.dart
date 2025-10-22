@@ -18,7 +18,7 @@ class WorkflowCanvas extends StatefulWidget {
   final bool readonly;
 
   const WorkflowCanvas({
-    super.key,
+    Key? key,
     required this.nodes,
     required this.edges,
     required this.onNodeDrag,
@@ -30,7 +30,7 @@ class WorkflowCanvas extends StatefulWidget {
     this.onCancelConnection,
     this.onDeleteEdge,
     this.readonly = false,
-  });
+  }) : super(key: key);
 
   @override
   State<WorkflowCanvas> createState() => _WorkflowCanvasState();
@@ -76,15 +76,7 @@ class _WorkflowCanvasState extends State<WorkflowCanvas> {
           width: 2200,
           height: 1400,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.green.shade100,
-                Colors.blue.shade50,
-                Colors.indigo.shade50,
-              ],
-            ),
+            color: Colors.blue.shade50,
           ),
           child: Stack(
             children: [

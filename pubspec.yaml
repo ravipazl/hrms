@@ -1,59 +1,61 @@
 name: hrms
 description: "HRMS Workflow Management System - Web Application"
 publish_to: 'none'
-
+ 
 version: 1.0.0+1
-
+ 
 environment:
   sdk: ^3.7.2
-
+ 
 dependencies:
   flutter:
     sdk: flutter
-
+ 
   cupertino_icons: ^1.0.8
-  
+ 
   # HTTP & API - Web compatible versions only
   http: ^1.2.0
   dio: ^5.4.0
-  
+ 
   # State Management
   provider: ^6.1.1
-  
+ 
   # UI Components
   flutter_svg: ^2.0.9
   file_picker: ^6.1.1
   url_launcher: ^6.2.4
   path: ^1.8.3
-  
+ 
   # Storage (Web compatible)
   shared_preferences: ^2.2.2
-  
+ 
   # Utils
   uuid: ^4.3.3
   intl: any
+ 
   logger: ^1.1.0
-  
+ 
   # Web specific
   url_strategy: ^0.2.0
-  
+ 
   # Image picker for header logo
   image_picker: ^1.0.7
-  
+ 
   # Rich Text Editor - Latest stable version
   flutter_quill: ^11.4.2
   equatable: ^2.0.5
-
+ 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+ 
   flutter_lints: ^5.0.0
-
+ 
 flutter:
   uses-material-design: true
-  
+ 
   # Assets
   assets:
     - assets/images/
     - assets/images/logo.png
+ 

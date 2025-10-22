@@ -10,6 +10,7 @@ class WorkflowTemplate {
   final String stage;
   final WorkflowStage? selectedStage;
   final int? department;
+  final String? departmentName;
   final bool isGlobalDefault;
   final List<WorkflowNode> nodes;
   final List<WorkflowEdge> edges;
@@ -24,6 +25,7 @@ class WorkflowTemplate {
     required this.stage,
     this.selectedStage,
     this.department,
+    this.departmentName,
     this.isGlobalDefault = false,
     required this.nodes,
     required this.edges,
@@ -43,6 +45,7 @@ class WorkflowTemplate {
           ? WorkflowStage.fromJson(json['selectedStage'])
           : null,
       department: json['department'] is int ? json['department'] : (json['department'] != null ? int.tryParse(json['department'].toString()) : null),
+      departmentName: json['department_name']?.toString(),
       isGlobalDefault: json['isGlobalDefault'] ?? json['is_global_default'] ?? false,
       nodes: (json['nodes'] as List?)
               ?.map((node) => WorkflowNode.fromJson(node))
@@ -70,6 +73,7 @@ class WorkflowTemplate {
       'stage': stage,
       'selectedStage': selectedStage?.toJson(),
       'department': department,
+      'department_name': departmentName,
       'isGlobalDefault': isGlobalDefault,
       'nodes': nodes.map((node) => node.toJson()).toList(),
       'edges': edges.map((edge) => edge.toJson()).toList(),
@@ -86,6 +90,7 @@ class WorkflowTemplate {
     String? stage,
     WorkflowStage? selectedStage,
     int? department,
+    String? departmentName,
     bool? isGlobalDefault,
     List<WorkflowNode>? nodes,
     List<WorkflowEdge>? edges,
@@ -100,6 +105,7 @@ class WorkflowTemplate {
       stage: stage ?? this.stage,
       selectedStage: selectedStage ?? this.selectedStage,
       department: department ?? this.department,
+      departmentName: departmentName ?? this.departmentName,
       isGlobalDefault: isGlobalDefault ?? this.isGlobalDefault,
       nodes: nodes ?? this.nodes,
       edges: edges ?? this.edges,

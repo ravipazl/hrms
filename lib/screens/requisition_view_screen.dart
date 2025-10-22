@@ -313,15 +313,6 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  _workflowExecution?.workflowConfigured == true
-                      ? 'Workflow is active - Status managed by workflow'
-                      : 'Review requisition details and update approval status',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -398,7 +389,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Requisition Verification ${_workflowExecution?.workflowConfigured == true ? '🔒' : ''}',
+            'Requisition Verification ${_workflowExecution?.workflowConfigured == true ? '' : ''}',
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
           ),
           const SizedBox(height: 8),
@@ -510,7 +501,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            canSetup ? '⚠️ Workflow Setup Required' : 'Workflow Setup',
+            canSetup ? ' Workflow Setup Required' : 'Workflow Setup',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -626,15 +617,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
             ),
           ],
         ),
-        if (!canSetup)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Approve requisition to enable workflow setup',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
-          ),
+        
       ],
     );
   }
@@ -1342,7 +1325,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
       child: Center(
-        child: Text('✅ Workflow Approval Status',
+        child: Text(' Workflow Approval Status',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
       ),
     );
@@ -1389,49 +1372,295 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
   }
 
   Widget _buildTimelineStep(WorkflowStep step, bool isLast) {
-    Color nodeColor = step.status == 'start'
-        ? Colors.blue
-        : step.outcome == 'approved'
-            ? Colors.green
-            : step.outcome == 'rejected'
-                ? Colors.red
-                : Colors.grey;
+    // Determine colors and icons based on status
+    Color nodeColor;
+    Color backgroundColor;
+    Color borderColor;
+    IconData statusIcon;
+    String statusText;
+    Color statusTextColor;
+    
+    if (step.outcome == 'approved') {
+      nodeColor = Colors.green;
+      backgroundColor = Colors.green.shade50;
+      borderColor = Colors.green.shade200;
+      statusIcon = Icons.check_circle;
+      statusText = 'Completed';
+      statusTextColor = Colors.green.shade700;
+    } else if (step.outcome == 'rejected') {
+      nodeColor = Colors.red;
+      backgroundColor = Colors.red.shade50;
+      borderColor = Colors.red.shade200;
+      statusIcon = Icons.cancel;
+      statusText = 'Rejected';
+      statusTextColor = Colors.red.shade700;
+    } else if (step.status == 'start' || step.status == 'in_progress') {
+      nodeColor = Colors.blue;
+      backgroundColor = Colors.blue.shade50;
+      borderColor = Colors.blue.shade200;
+      statusIcon = Icons.pending;
+      statusText = 'In Progress';
+      statusTextColor = Colors.blue.shade700;
+    } else {
+      nodeColor = Colors.grey;
+      backgroundColor = Colors.grey.shade50;
+      borderColor = Colors.grey.shade300;
+      statusIcon = Icons.hourglass_empty;
+      statusText = 'Pending';
+      statusTextColor = Colors.grey.shade700;
+    }
+
+    // Format timestamps
+    String formatTimestamp(String? timestamp) {
+      if (timestamp == null || timestamp.isEmpty) return 'N/A';
+      try {
+        final dateTime = DateTime.parse(timestamp);
+        return DateFormat('MMM d, hh:mm a').format(dateTime);
+      } catch (e) {
+        return timestamp;
+      }
+    }
+
+    // Determine outcome display
+    String outcomeDisplay = step.outcome != null && step.outcome!.isNotEmpty
+        ? step.outcome!.substring(0, 1).toUpperCase() + step.outcome!.substring(1)
+        : 'Pending';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Timeline node
         Column(
           children: [
             Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(color: nodeColor, shape: BoxShape.circle),
-              child: const Icon(Icons.check, color: Colors.white, size: 16),
+              child: Icon(statusIcon, color: Colors.white, size: 16),
             ),
-            if (!isLast) Container(width: 2, height: 60, color: Colors.grey.shade300),
+            if (!isLast) Container(width: 2, height: 80, color: Colors.grey.shade300),
           ],
         ),
         const SizedBox(width: 12),
+        
+        // Step details card
         Expanded(
           child: Container(
             margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: nodeColor.withOpacity(0.1),
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: nodeColor, width: 2),
+              border: Border.all(color: borderColor, width: 1.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Step ${step.stepOrder}: ${step.nodeDescription}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('Assigned: ${step.assignedTo ?? "Not assigned"}',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                if (step.comments != null)
-                  Text('💬 ${step.comments}', style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
+                // Step title and status badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Step ${step.stepOrder}: ${step.nodeDescription}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusTextColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: statusTextColor.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: statusTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Detailed information in a single line
+                Row(
+                  children: [
+                    // Approver
+                    const SizedBox(width: 4),
+                    Text(
+                      'Approver:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      step.assignedTo ?? 'Not assigned',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 20),
+                    
+                    // Outcome
+                   
+                    const SizedBox(width: 4),
+                    Text(
+                      'Outcome:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      outcomeDisplay,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 20),
+                    
+                    // Started timestamp
+                    
+                    const SizedBox(width: 4),
+                    Text(
+                      'Started:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formatTimestamp(step.startDate?.toIso8601String()),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 20),
+                    
+                    // Completed timestamp
+                    
+                    const SizedBox(width: 4),
+                    Text(
+                      'Completed:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formatTimestamp(step.endDate?.toIso8601String()),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    
+                    const SizedBox(width: 20),
+                    
+                    // Approval position
+                    
+                    const SizedBox(width: 4),
+                    Text(
+                      'Approval:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pos:${step.stepOrder}/${_workflowExecution?.workflowSteps.length ?? 0}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // Comments section
+                if (step.comments != null && step.comments!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(width: 6),
+                      Text(
+                        'Comments:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          step.comments!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade800,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Helper widget for step detail items
+  Widget _buildStepDetailItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color iconColor,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: iconColor),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.black87,
           ),
         ),
       ],

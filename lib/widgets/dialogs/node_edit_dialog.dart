@@ -10,14 +10,14 @@ class NodeEditDialog extends StatefulWidget {
   final Function(String nodeId) onDeleteNode;
 
   const NodeEditDialog({
-    super.key,
+    Key? key,
     required this.node,
     required this.nodeId,
     required this.availableEmployees,
     required this.loadingEmployees,
     required this.onUpdateNode,
     required this.onDeleteNode,
-  });
+  }) : super(key: key);
 
   @override
   State<NodeEditDialog> createState() => _NodeEditDialogState();
@@ -28,6 +28,10 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
   late TextEditingController _userIdController;
   late TextEditingController _commentController;
   int? _selectedEmployeeId;
+  
+  // Validation error messages
+  String? _usernameError;
+  String? _userIdError;
 
   @override
   void initState() {
@@ -41,7 +45,7 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
     _commentController = TextEditingController(
       text: widget.node.data.comment ?? '',
     );
-    _selectedEmployeeId = widget.node.data.selectedEmployeeId;
+    _selectedEmployeeId = widget?.node?.data?.selectedEmployeeId;
   }
 
   @override
@@ -66,7 +70,12 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
   }
 
   void _handleEmployeeChange(String? employeeId) {
-    if (employeeId == null || employeeId.isEmpty) return;
+    if (employeeId == null || employeeId.isEmpty) {
+      setState(() {
+        _usernameError = 'Please select an employee';
+      });
+      return;
+    }
 
     final selectedEmployee = widget.availableEmployees.firstWhere(
       (emp) => emp.id.toString() == employeeId,
@@ -84,6 +93,8 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
       setState(() {
         _selectedEmployeeId = selectedEmployee.id;
         _userIdController.text = selectedEmployee.userId;
+        _usernameError = null; // Clear error
+        _userIdError = null; // Clear user ID error when employee is selected
       });
 
       // Update node data
@@ -110,6 +121,14 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
   }
 
   void _handleUserIdChange(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _userIdError = 'User ID is required';
+      } else {
+        _userIdError = null;
+      }
+    });
+    
     final newData = widget.node.data.copyWith(userId: value);
     widget.onUpdateNode(widget.nodeId, newData);
   }
@@ -125,6 +144,39 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
   }
 
   void _handleSaveAndClose() {
+    // Validate before closing
+    bool hasErrors = false;
+    
+    setState(() {
+      // Validate username
+      if (_selectedEmployeeId == null) {
+        _usernameError = 'Please select an employee';
+        hasErrors = true;
+      } else {
+        _usernameError = null;
+      }
+      
+      // Validate user ID
+      if (_userIdController.text.trim().isEmpty) {
+        _userIdError = 'User ID is required';
+        hasErrors = true;
+      } else {
+        _userIdError = null;
+      }
+    });
+    
+    if (hasErrors) {
+      // Show snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fix the validation errors before saving'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
     Navigator.of(context).pop();
   }
 
@@ -189,6 +241,7 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
                       controller: _userIdController,
                       onChanged: _handleUserIdChange,
                       placeholder: 'e.g., dept_head',
+                      errorText: _userIdError,
                     ),
                     const SizedBox(height: 16),
 
@@ -264,6 +317,7 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
     required Function(String) onChanged,
     String? placeholder,
     int maxLines = 1,
+    String? errorText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,11 +339,20 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
             hintText: placeholder,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: errorText != null ? Colors.red : Colors.grey.shade300,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.blue, width: 2),
+              borderSide: BorderSide(
+                color: errorText != null ? Colors.red : Colors.blue,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.red),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
@@ -297,6 +360,16 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
             ),
           ),
         ),
+        if (errorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -338,15 +411,24 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
                 ),
               )
             : DropdownButtonFormField<String>(
-                initialValue: _selectedEmployeeId?.toString(),
+                value: _selectedEmployeeId?.toString(),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: _usernameError != null ? Colors.red : Colors.grey.shade300,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.blue, width: 2),
+                    borderSide: BorderSide(
+                      color: _usernameError != null ? Colors.red : Colors.blue,
+                      width: 2,
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -363,6 +445,16 @@ class _NodeEditDialogState extends State<NodeEditDialog> {
                     .toList(),
                 onChanged: _handleEmployeeChange,
               ),
+        if (_usernameError != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _usernameError!,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ],
     );
   }

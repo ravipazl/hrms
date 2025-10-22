@@ -218,56 +218,46 @@ class _WorkflowApproverSetupScreenState
     }
   }
 
-  /// ✅ NEW: Show detailed error with dialog
+  /// ✅ UPDATED: Show error as SnackBar (toast) at the top
   void _showDetailedError(String message) {
     setState(() {
       _error = message;
     });
 
-    // Also show in dialog for better visibility
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error, color: Colors.red.shade700),
-            const SizedBox(width: 8),
-            const Text('Validation Error'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-
-    // Also show snackbar
+    // Show as SnackBar (toast) at the top
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message.split('\n').first), // Show first line only
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Details',
-          textColor: Colors.white,
-          onPressed: () {
-            // Dialog already shown
-          },
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Validation Error',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(top: 16, left: 16, right: 16, bottom: MediaQuery.of(context).size.height - 200),
+        padding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );
@@ -306,8 +296,8 @@ class _WorkflowApproverSetupScreenState
               _buildHeader(provider),
 
               // Error/Success Messages
-              if (_error != null) _buildErrorBanner(),
-              if (_successMessage != null) _buildSuccessBanner(),
+              // if (_error != null) _buildErrorBanner(),
+              // if (_successMessage != null) _buildSuccessBanner(),
 
               // Main content
               Expanded(
@@ -352,13 +342,13 @@ class _WorkflowApproverSetupScreenState
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Configure approvers for requisition ${widget.requisitionId} using template "${provider.template.name}"',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
+                // Text(
+                //   'Configure approvers for requisition ${widget.requisitionId} using template "${provider.template.name}"',
+                //   style: TextStyle(
+                //     fontSize: 12,
+                //     color: Colors.grey[600],
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -386,74 +376,7 @@ class _WorkflowApproverSetupScreenState
     );
   }
 
-  /// ✅ ENHANCED: Error banner with better visibility
-  Widget _buildErrorBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      color: Colors.red.shade100,
-      child: Row(
-        children: [
-          const Icon(Icons.error, color: Colors.red),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _error!.split('\n').first, // Show first line in banner
-              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Error Details'),
-                  content: SingleChildScrollView(
-                    child: Text(_error!),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('View Details'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => setState(() => _error = null),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build success banner
-  Widget _buildSuccessBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      color: Colors.green.shade100,
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Colors.green),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _successMessage!,
-              style: const TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+ 
 
   /// Build left sidebar
   Widget _buildLeftSidebar(WorkflowProvider provider) {
@@ -464,216 +387,135 @@ class _WorkflowApproverSetupScreenState
         border: Border(right: BorderSide(color: Colors.grey.shade200)),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Template Information',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
             // Template Name (read-only)
+            const Text(
+              'Template Name *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(text: provider.template.name),
-              decoration: const InputDecoration(
-                labelText: 'Template Name',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Description (read-only)
+            const Text(
+              'Description',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(text: provider.template.description),
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
-              maxLines: 2,
+              maxLines: 3,
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Workflow Stage (read-only)
+            const Text(
+              'Workflow Stage *',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(
                 text: provider.selectedStage?.description ?? provider.template.stage,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Workflow Stage',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
 
             // Department (read-only)
+            const Text(
+              'Department',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: TextEditingController(
-                text: provider.template.department != null
-                    ? 'Department ID: ${provider.template.department}'
-                    : 'Global Template',
+                text: provider.template.departmentName?.isNotEmpty == true
+                    ? provider.template.departmentName!
+                    : provider.template.department != null
+                        ? 'Department ${provider.template.department}'
+                        : 'All Departments',
               ),
-              decoration: const InputDecoration(
-                labelText: 'Department',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 filled: true,
-                fillColor: Color(0xFFF9FAFB),
+                fillColor: Colors.grey.shade50,
               ),
               readOnly: true,
               enabled: false,
+              style: const TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 24),
 
-            // Instructions
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info, size: 16, color: Colors.blue.shade700),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Instructions',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Click on approval nodes to assign approvers\n'
-                    '• Select employee from dropdown\n'
-                    '• User ID will be auto-filled\n'
-                    '• All approval nodes must have valid approvers',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // ✅ ENHANCED: Approval nodes summary matching React
-            _buildApprovalNodesSummary(provider),
-          ],
+           
+          ], 
         ),
       ),
     );
   }
 
-  /// ✅ ENHANCED: Build approval nodes summary with progress indicator
-  Widget _buildApprovalNodesSummary(WorkflowProvider provider) {
-    final approvalNodes = provider.template.nodes
-        .where((node) => node.type == 'approval')
-        .toList();
-
-    final assignedNodes = approvalNodes.where((node) {
-      final hasValidEmployee = node.data.selectedEmployeeId != null &&
-          node.data.selectedEmployeeId.toString().isNotEmpty &&
-          node.data.username != null &&
-          node.data.username!.isNotEmpty &&
-          node.data.username != 'user';
-
-      final hasValidUserId = node.data.userId != null &&
-          node.data.userId!.trim().isNotEmpty &&
-          node.data.userId!.trim() != 'user';
-
-      return hasValidEmployee && hasValidUserId;
-    }).length;
-
-    final isComplete = assignedNodes == approvalNodes.length;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isComplete ? Colors.green.shade50 : Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isComplete ? Colors.green.shade200 : Colors.orange.shade200,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Approver Assignment',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '$assignedNodes/${approvalNodes.length}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: approvalNodes.isEmpty ? 0 : assignedNodes / approvalNodes.length,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isComplete ? Colors.green : Colors.orange,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                isComplete ? Icons.check_circle : Icons.warning,
-                size: 16,
-                color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isComplete
-                      ? 'All approvers assigned'
-                      : '${approvalNodes.length - assignedNodes} node(s) need approvers',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isComplete ? Colors.green.shade700 : Colors.orange.shade700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+ 
 
   /// ✅ FIXED: Build canvas area using existing WorkflowCanvas widget
   Widget _buildCanvasArea(WorkflowProvider provider) {

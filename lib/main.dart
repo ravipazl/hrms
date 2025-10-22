@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hrms/models/requisition.dart';
 import 'package:hrms/providers/requisition_provider.dart';
+import 'package:hrms/screens/form_builder/form_builder_screen.dart';
 import 'package:hrms/screens/requisition_form_screen.dart';
 import 'package:hrms/screens/requisition_view_screen.dart';
 import 'package:hrms/screens/approval_action_screen.dart';
@@ -8,7 +9,6 @@ import 'package:provider/provider.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
 import 'providers/workflow_provider.dart';
-import 'providers/form_builder_provider.dart';
 import 'providers/template_list_provider.dart';
 import 'screens/workflow_creation_screen.dart';
 import 'screens/form_builder/form_list_screen.dart';
@@ -16,7 +16,7 @@ import 'screens/form_builder/form_builder_screen.dart';
 // Authentication imports
 import 'services/auth_service.dart';
 import 'services/form_builder_api_service.dart';
-
+import 'providers/form_builder_provider.dart';
 
 void main() {
   setPathUrlStrategy();
@@ -24,7 +24,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   Widget _buildErrorScreen(String title, String message) {
     return Scaffold(
@@ -85,7 +85,7 @@ class MyApp extends StatelessWidget {
             print('🧹 Disposing AuthService');
           },
         ),
-        
+
         // FormBuilderAPIService depends on AuthService
         ProxyProvider<AuthService, FormBuilderAPIService>(
           update: (_, authService, __) {
@@ -93,7 +93,7 @@ class MyApp extends StatelessWidget {
             return FormBuilderAPIService(authService);
           },
         ),
-        
+
         // Other providers
         ChangeNotifierProvider(create: (_) => WorkflowProvider()),
         ChangeNotifierProvider(create: (_) => RequisitionProvider()),
@@ -130,7 +130,9 @@ class MyApp extends StatelessWidget {
               final requisitionId = int.parse(match.group(1)!);
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => RequisitionViewScreen(requisitionId: requisitionId),
+                builder:
+                    (context) =>
+                        RequisitionViewScreen(requisitionId: requisitionId),
               );
             }
           }
@@ -144,10 +146,11 @@ class MyApp extends StatelessWidget {
               final suggestedAction = queryParams['action'] ?? 'approved';
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => ApprovalActionScreen(
-                  stepId: stepId,
-                  suggestedAction: suggestedAction,
-                ),
+                builder:
+                    (context) => ApprovalActionScreen(
+                      stepId: stepId,
+                      suggestedAction: suggestedAction,
+                    ),
               );
             }
           }
@@ -171,43 +174,48 @@ class MyApp extends StatelessWidget {
             case '/create':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const WorkflowCreationScreen(mode: 'create'),
+                builder:
+                    (context) => const WorkflowCreationScreen(mode: 'create'),
               );
 
             case '/edit':
               if (templateId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Template ID Required',
-                    'Edit mode requires ?id=123 parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Template ID Required',
+                        'Edit mode requires ?id=123 parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => WorkflowCreationScreen(
-                  templateId: templateId,
-                  mode: 'edit',
-                ),
+                builder:
+                    (context) => WorkflowCreationScreen(
+                      templateId: templateId,
+                      mode: 'edit',
+                    ),
               );
 
             case '/view':
               if (templateId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Template ID Required',
-                    'View mode requires ?id=123 parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Template ID Required',
+                        'View mode requires ?id=123 parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => WorkflowCreationScreen(
-                  templateId: templateId,
-                  mode: 'view',
-                ),
+                builder:
+                    (context) => WorkflowCreationScreen(
+                      templateId: templateId,
+                      mode: 'view',
+                    ),
               );
 
             // Requisition create route
@@ -221,31 +229,39 @@ class MyApp extends StatelessWidget {
             case '/form-builder/create':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => AuthCheckWrapper(
-                  child: ChangeNotifierProvider(
-                    create: (context) => FormBuilderProvider(context.read<AuthService>()),
-                    child: const FormBuilderScreen(),
-                  ),
-                ),
+                builder:
+                    (context) => AuthCheckWrapper(
+                      child: ChangeNotifierProvider(
+                        create:
+                            (context) => FormBuilderProvider(
+                              context.read<AuthService>(),
+                            ),
+                        child: const FormBuilderScreen(),
+                      ),
+                    ),
               );
 
             case '/form-builder':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => AuthCheckWrapper(
-                  child: ChangeNotifierProvider(
-                    create: (context) => FormBuilderProvider(context.read<AuthService>()),
-                    child: const FormBuilderScreen(),
-                  ),
-                ),
+                builder:
+                    (context) => AuthCheckWrapper(
+                      child: ChangeNotifierProvider(
+                        create:
+                            (context) => FormBuilderProvider(
+                              context.read<AuthService>(),
+                            ),
+                        child: const FormBuilderScreen(),
+                      ),
+                    ),
               );
 
             case '/form-builder/list':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const AuthCheckWrapper(
-                  child: FormListScreenWrapper(),
-                ),
+                builder:
+                    (context) =>
+                        const AuthCheckWrapper(child: FormListScreenWrapper()),
               );
 
             case '/form-builder/edit':
@@ -253,20 +269,25 @@ class MyApp extends StatelessWidget {
               if (formId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Form ID Required',
-                    'Edit mode requires ?id=xxx parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Form ID Required',
+                        'Edit mode requires ?id=xxx parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => AuthCheckWrapper(
-                  child: ChangeNotifierProvider(
-                    create: (context) => FormBuilderProvider(context.read<AuthService>()),
-                    child: FormBuilderScreen(templateId: formId),
-                  ),
-                ),
+                builder:
+                    (context) => AuthCheckWrapper(
+                      child: ChangeNotifierProvider(
+                        create:
+                            (context) => FormBuilderProvider(
+                              context.read<AuthService>(),
+                            ),
+                        child: FormBuilderScreen(templateId: formId),
+                      ),
+                    ),
               );
 
             case '/form-builder/view':
@@ -274,20 +295,25 @@ class MyApp extends StatelessWidget {
               if (formId == null) {
                 return MaterialPageRoute(
                   settings: settings,
-                  builder: (context) => _buildErrorScreen(
-                    'Form ID Required',
-                    'View mode requires ?id=xxx parameter',
-                  ),
+                  builder:
+                      (context) => _buildErrorScreen(
+                        'Form ID Required',
+                        'View mode requires ?id=xxx parameter',
+                      ),
                 );
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => AuthCheckWrapper(
-                  child: ChangeNotifierProvider(
-                    create: (context) => FormBuilderProvider(context.read<AuthService>()),
-                    child: FormBuilderScreen(templateId: formId),
-                  ),
-                ),
+                builder:
+                    (context) => AuthCheckWrapper(
+                      child: ChangeNotifierProvider(
+                        create:
+                            (context) => FormBuilderProvider(
+                              context.read<AuthService>(),
+                            ),
+                        child: FormBuilderScreen(templateId: formId),
+                      ),
+                    ),
               );
 
             // 🔒 ROOT ROUTE - Redirect to Django if accessed directly
@@ -325,12 +351,12 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
 
   Future<void> _checkAccessAndRedirect() async {
     print('🔍 Checking if user accessed via Django...');
-    
+
     final authService = context.read<AuthService>();
-    
+
     // Check if user is authenticated
     final authData = await authService.checkAuthentication();
-    
+
     if (authData != null) {
       // User is authenticated, but accessed root directly
       // Redirect to form builder list
@@ -369,7 +395,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Title
               Text(
                 'Access Restricted',
@@ -380,7 +406,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Message
               Text(
                 'This application must be accessed through the Django dashboard.',
@@ -392,7 +418,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Instructions
               Container(
                 padding: const EdgeInsets.all(20),
@@ -421,12 +447,15 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                     const SizedBox(height: 12),
                     _buildStep('1', 'Login to Django dashboard'),
                     _buildStep('2', 'Click "Form Builder" in the sidebar'),
-                    _buildStep('3', 'You will be redirected here automatically'),
+                    _buildStep(
+                      '3',
+                      'You will be redirected here automatically',
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Redirect Button
               SizedBox(
                 width: double.infinity,
@@ -451,7 +480,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Alternative link
               TextButton(
                 onPressed: () {
@@ -496,10 +525,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
             ),
           ),
         ],
@@ -534,12 +560,12 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
   Future<void> _checkAuthentication() async {
     try {
       print('🔐 AuthCheckWrapper: Checking authentication...');
-      
+
       final authService = context.read<AuthService>();
-      
+
       // Small delay for visual feedback
       await Future.delayed(const Duration(milliseconds: 300));
-      
+
       final authData = await authService.checkAuthentication();
 
       if (mounted) {
@@ -583,9 +609,9 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
               const SizedBox(height: 8),
               Text(
                 'Verifying Django session',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey),
               ),
             ],
           ),
@@ -692,7 +718,8 @@ class _RouterWidgetState extends State<RouterWidget> {
 class RequisitionEditWrapper extends StatelessWidget {
   final int requisitionId;
 
-  const RequisitionEditWrapper({Key? key, required this.requisitionId}) : super(key: key);
+  const RequisitionEditWrapper({Key? key, required this.requisitionId})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -730,7 +757,8 @@ class RequisitionEditWrapper extends StatelessWidget {
                   Text('Error loading requisition: ${snapshot.error}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+                    onPressed:
+                        () => Navigator.of(context).pushReplacementNamed('/'),
                     child: const Text('Go Back'),
                   ),
                 ],

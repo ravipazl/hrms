@@ -105,14 +105,23 @@ class _InteractiveFieldWrapperState extends State<InteractiveFieldWrapper> {
     bool isSelected, {
     bool isDragging = false,
   }) {
+    // Check if this is an interactive field (richText or table)
+    final isInteractiveField = widget.field.type == form_models.FieldType.richText ||
+                               widget.field.type == form_models.FieldType.table;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
       child: GestureDetector(
-        onTap: isDragging ? null : () {
+        // Only handle taps on non-interactive areas for richText/table fields
+        onTap: isDragging ? null : (isInteractiveField ? null : () {
           // Select field on click
           provider.selectField(widget.field.id);
-        },
+        }),
+        // Allow events to bubble through for interactive fields
+        behavior: isInteractiveField 
+            ? HitTestBehavior.translucent 
+            : HitTestBehavior.opaque,
         child: Container(
           margin: const EdgeInsets.only(bottom: 12, right: 8),
           padding: const EdgeInsets.all(12),
@@ -139,12 +148,17 @@ class _InteractiveFieldWrapperState extends State<InteractiveFieldWrapper> {
                 padding: isSelected || _isHovering
                     ? const EdgeInsets.only(top: 32)
                     : EdgeInsets.zero,
-                child: IgnorePointer(
-                  // Prevent field interactions in builder mode
-                  // EXCEPT for richText fields which need to be editable
-                  ignoring: widget.field.type != form_models.FieldType.richText &&
-                           widget.field.type != form_models.FieldType.table,
-                  child: widget.child,
+                child: GestureDetector(
+                  // For interactive fields, add a way to select by clicking the padding/border area
+                  onTap: isInteractiveField ? () {
+                    provider.selectField(widget.field.id);
+                  } : null,
+                  behavior: HitTestBehavior.deferToChild,
+                  child: IgnorePointer(
+                    // Allow interactions for richText and table fields
+                    ignoring: !isInteractiveField,
+                    child: widget.child,
+                  ),
                 ),
               ),
 

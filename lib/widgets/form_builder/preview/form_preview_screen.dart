@@ -26,6 +26,7 @@ class FormPreviewScreen extends StatefulWidget {
 
 class _FormPreviewScreenState extends State<FormPreviewScreen> {
   final Map<String, dynamic> _formData = {};
+  final Map<String, List<String>> _validationErrors = {};
 
   @override
   void initState() {
@@ -41,6 +42,45 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         // Initialize checkbox group to empty array if no default
         _formData[field.id] = [];
       }
+    }
+  }
+
+  // ✅ FIX: Update field value WITHOUT setState to prevent full form rebuild
+  void _updateFieldValue(String fieldId, dynamic value) {
+    _formData[fieldId] = value;
+    debugPrint('Field $fieldId changed to: $value');
+  }
+
+  // ✅ FIX: Only validate and rebuild when needed (on submit)
+  bool _validateForm() {
+    setState(() {
+      _validationErrors.clear();
+      
+      for (final field in widget.fields) {
+        final value = _formData[field.id];
+        final errors = <String>[];
+        
+        // Required field validation
+        if (field.required) {
+          if (value == null || 
+              (value is String && value.trim().isEmpty) ||
+              (value is List && value.isEmpty)) {
+            errors.add('${field.label} is required');
+          }
+        }
+        
+        if (errors.isNotEmpty) {
+          _validationErrors[field.id] = errors;
+        }
+      }
+    });
+    
+    return _validationErrors.isEmpty;
+  }
+
+  void _handleSubmit() {
+    if (_validateForm() && widget.onSubmit != null) {
+      widget.onSubmit!(_formData);
     }
   }
 
@@ -82,7 +122,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => widget.onSubmit!(_formData),
+                  onPressed: _handleSubmit,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -116,6 +156,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
       }
 
       // Add field to current row
+      // ✅ FIX: Use _updateFieldValue instead of setState
       currentRow.add(
         Expanded(
           flex: fieldWidth,
@@ -123,12 +164,8 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             key: ValueKey('renderer_${field.id}'),
             field: field,
             value: _formData[field.id],
-            onChanged: (value) {
-              setState(() {
-                _formData[field.id] = value;
-                debugPrint('Field ${field.id} (${field.type.toShortString()}) changed to: $value');
-              });
-            },
+            onChanged: (value) => _updateFieldValue(field.id, value),
+            error: _validationErrors[field.id],
           ),
         ),
       );

@@ -18,17 +18,15 @@ class FormBuilderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) {
-        final provider = FormBuilderProvider();
-        if (templateId != null) {
-          // Load template if ID provided
-          Future.microtask(() => provider.loadTemplate(templateId!));
-        }
-        return provider;
-      },
-      child: const _FormBuilderContent(),
-    );
+    // Provider is created in main.dart routes with AuthService
+    // Just load the template if needed
+    if (templateId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final provider = Provider.of<FormBuilderProvider>(context, listen: false);
+        provider.loadTemplate(templateId!);
+      });
+    }
+    return const _FormBuilderContent();
   }
 }
 

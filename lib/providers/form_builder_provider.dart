@@ -4,6 +4,7 @@ import '../models/form_builder/form_data.dart';
 import '../models/form_builder/enhanced_header_config.dart';
 import '../models/form_builder/form_template.dart'; 
 import '../services/form_builder_api_service.dart';
+import '../services/auth_service.dart';
 
 class FormBuilderProvider extends ChangeNotifier {
   // ========== STATE ==========
@@ -25,8 +26,14 @@ class FormBuilderProvider extends ChangeNotifier {
   final List<FormData> _undoStack = [];
   final List<FormData> _redoStack = [];
   
-  // API Service
-  final FormBuilderAPIService _apiService = FormBuilderAPIService();
+  // API Service - injected via constructor
+  late final FormBuilderAPIService _apiService;
+
+  // ========== CONSTRUCTOR ==========
+  
+  FormBuilderProvider(AuthService authService) {
+    _apiService = FormBuilderAPIService(authService);
+  }
 
   // ========== GETTERS ==========
   
@@ -348,48 +355,45 @@ class FormBuilderProvider extends ChangeNotifier {
     }
   }
 
-/// Save template to server - UPDATED
-Future<bool> saveTemplate() async {
-  if (_isSaving) return false;
-  
-  _isSaving = true;
-  _error = null;
-  notifyListeners();
-
-  try {
-    final formData = FormData(
-      formTitle: _formTitle,
-      formDescription: _formDescription,
-      headerConfig: _headerConfig,
-      fields: _fields,
-    );
-
-    // ✅ Optional: Test data format before sending
-    await _apiService.testDataFormat(formData);
-
-    if (_currentTemplate != null) {
-      // Update existing
-      final updated = await _apiService.updateTemplate(
-        _currentTemplate!.id,
-        formData,
-      );
-      _currentTemplate = updated;
-    } else {
-      // Create new
-      final created = await _apiService.saveTemplate(formData);
-      _currentTemplate = created;
-    }
-
+  /// Save template to server
+  Future<bool> saveTemplate() async {
+    if (_isSaving) return false;
+    
+    _isSaving = true;
     _error = null;
-    return true;
-  } catch (e) {
-    _error = e.toString();
-    return false;
-  } finally {
-    _isSaving = false;
     notifyListeners();
+
+    try {
+      final formData = FormData(
+        formTitle: _formTitle,
+        formDescription: _formDescription,
+        headerConfig: _headerConfig,
+        fields: _fields,
+      );
+
+      if (_currentTemplate != null) {
+        // Update existing
+        final updated = await _apiService.updateTemplate(
+          _currentTemplate!.id,
+          formData,
+        );
+        _currentTemplate = updated;
+      } else {
+        // Create new
+        final created = await _apiService.saveTemplate(formData);
+        _currentTemplate = created;
+      }
+
+      _error = null;
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
   }
-}
 
   /// Reset form to empty state
   void resetForm() {

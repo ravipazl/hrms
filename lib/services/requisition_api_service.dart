@@ -1,27 +1,89 @@
 // lib/services/requisition_api_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:dio/browser.dart';
 import 'package:hrms/models/requisition.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/file_preview.dart';
 import 'api_config.dart';
+import 'auth_service.dart';
 
 class RequisitionApiService {
+  final Dio _dio;
+  final AuthService _authService;
+  
+  RequisitionApiService({AuthService? authService}) 
+    : _authService = authService ?? AuthService(),
+      _dio = Dio() {
+    _initializeDio();
+  }
+
+  void _initializeDio() {
+    _dio.options.baseUrl = ApiConfig.djangoBaseUrl;
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    // CRITICAL: Enable credentials for Flutter Web (session cookies)
+    _dio.options.extra['withCredentials'] = true;
+    
+    // Configure browser adapter for web
+    final adapter = _dio.httpClientAdapter;
+    if (adapter is BrowserHttpClientAdapter) {
+      adapter.withCredentials = true;
+    }
+    
+    // Timeouts
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    
+    // Add interceptor to include CSRF token
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Get CSRF token and add to headers
+          final csrfToken = await _authService.getCsrfToken();
+          if (csrfToken != null) {
+            options.headers['X-CSRFToken'] = csrfToken;
+          }
+          return handler.next(options);
+        },
+        onError: (error, handler) {
+          print('❌ API Error: ${error.response?.statusCode} - ${error.message}');
+          if (error.response?.statusCode == 403 || error.response?.statusCode == 401) {
+            print('🔐 Authentication required - please login');
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+    
+    // Logging
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: false,
+        requestHeader: true,
+        responseHeader: true,
+        logPrint: (obj) => print('🌐 [API] $obj'),
+      ),
+    );
+  }
   /// Test API connection
   Future<Map<String, dynamic>> testConnection() async {
     try {
       print('🧪 Testing API connection...');
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.referenceDataEndpoint}'),
-      );
+      final response = await _dio.get('/api/reference-data/');
       
       if (response.statusCode == 200) {
         print('✅ API connection successful: ${response.statusCode}');
         return {
           'success': true,
           'status': response.statusCode,
-          'data': json.decode(response.body)
+          'data': response.data
         };
       } else {
         throw Exception('API connection failed: ${response.statusCode}');
@@ -47,27 +109,27 @@ class RequisitionApiService {
     try {
       print('📋 Fetching requisitions with filters');
       
-      final queryParams = <String, String>{};
-      if (search?.isNotEmpty == true) queryParams['search'] = search!;
-      if (department?.isNotEmpty == true) queryParams['department'] = department!;
-      if (status?.isNotEmpty == true) queryParams['status'] = status!;
+      final queryParams = <String, dynamic>{};
+      if (search?.isNotEmpty == true) queryParams['search'] = search;
+      if (department?.isNotEmpty == true) queryParams['department'] = department;
+      if (status?.isNotEmpty == true) queryParams['status'] = status;
       queryParams['page'] = page.toString();
       queryParams['page_size'] = pageSize.toString();
 
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}')
-          .replace(queryParameters: queryParams);
-
-      final response = await http.get(uri);
+      final response = await _dio.get(
+        '/api/requisition/',
+        queryParameters: queryParams,
+      );
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         List<Requisition> requisitions = [];
         int total = 0;
 
         if (data['results'] != null && data['results'] is List) {
           // Paginated response
           requisitions = (data['results'] as List)
-              .map((req) => Requisition.fromJson(req))
+              .map((req) => Requisition.fromJson(req as Map<String, dynamic>))
               .toList();
           total = data['count'] ?? 0;
         } else if (data is List) {
@@ -104,12 +166,10 @@ class RequisitionApiService {
   Future<Requisition> getRequisition(int id) async {
     try {
       print('🔍 Fetching DETAILED requisition for editing - ID: $id');
-      print('📡 API URL: ${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}$id/');
+      print('📡 API URL: /api/requisition/$id/');
       
       // Use the detail endpoint which returns complete requisition data
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.requisitionEndpoint}$id/'),
-      );
+      final response = await _dio.get('/api/requisition/$id/');
       
       print('✅ API Response received:');
       print('   - Status Code: ${response.statusCode}');
@@ -118,11 +178,7 @@ class RequisitionApiService {
         throw Exception('Failed to fetch requisition: ${response.statusCode}');
       }
       
-      if (response.body.isEmpty) {
-        throw Exception('Empty response from API');
-      }
-      
-      final data = json.decode(response.body);
+      final data = response.data;
       
       // Log raw response data for debugging
       print('📥 Raw API Response:');
@@ -442,14 +498,14 @@ class RequisitionApiService {
 
   
 
-  /// Update requisition status - EXACTLY like workflow_api_service.dart
-  Future<Map<String, dynamic>> updateRequisitionStatus(int id, String status) async {
+  /// Update requisition status - Fixed to use correct PATCH endpoint
+  Future<Requisition> updateRequisitionStatus(int id, String status) async {
     try {
       print('🔄 Updating requisition $id status to: $status');
       
-      // ✅ EXACTLY like workflow_api_service.dart - plain http with only Content-Type
+      // ✅ FIXED: Use the correct endpoint /api/requisition/$id/ with PATCH method
       final response = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}/requisition/$id/status/'),
+        Uri.parse('${ApiConfig.baseUrl}/requisition/$id/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'status': status}),
       );
@@ -459,9 +515,11 @@ class RequisitionApiService {
       
       if (response.statusCode == 200) {
         print('✅ Requisition status updated successfully');
-        return json.decode(response.body);
+        // Return the full updated requisition object
+        return Requisition.fromJson(json.decode(response.body));
       } else {
-        throw Exception('Failed to update status: ${response.statusCode}');
+        print('❌ Failed: ${response.statusCode} - ${response.body}');
+        throw Exception('Failed to update status: ${response.statusCode}\n${response.body}');
       }
     } catch (error) {
       print('❌ Error updating requisition $id status: $error');
@@ -474,13 +532,13 @@ class RequisitionApiService {
     try {
       print('📋 Fetching reference data for type: $referenceTypeId');
       
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.referenceDataEndpoint}')
-          .replace(queryParameters: {'reference_type': referenceTypeId.toString()});
-      
-      final response = await http.get(uri);
+      final response = await _dio.get(
+        '/api/reference-data/',
+        queryParameters: {'reference_type': referenceTypeId.toString()},
+      );
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         List<dynamic> referenceList;
         
         if (data['results'] != null) {
@@ -492,7 +550,7 @@ class RequisitionApiService {
         }
 
         final references = referenceList
-            .map((ref) => ReferenceData.fromJson(ref))
+            .map((ref) => ReferenceData.fromJson(ref as Map<String, dynamic>))
             .toList();
         
         print('✅ Reference data fetched: ${references.length} items');

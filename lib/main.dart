@@ -122,7 +122,7 @@ class MyApp extends StatelessWidget {
           print('🛣️ Route: $path');
           print('📊 Query params: $queryParams');
 
-          // Handle /reqview/{id} - Requisition View Page
+          // ✅ Handle /reqview/{id} - Requisition View Page WITH AUTHENTICATION
           if (path.contains('/reqview/')) {
             final regex = RegExp(r'/reqview/(\d+)');
             final match = regex.firstMatch(path);
@@ -130,9 +130,9 @@ class MyApp extends StatelessWidget {
               final requisitionId = int.parse(match.group(1)!);
               return MaterialPageRoute(
                 settings: settings,
-                builder:
-                    (context) =>
-                        RequisitionViewScreen(requisitionId: requisitionId),
+                builder: (context) => AuthCheckWrapper(
+                  child: RequisitionViewScreen(requisitionId: requisitionId),
+                ),
               );
             }
           }
@@ -155,7 +155,7 @@ class MyApp extends StatelessWidget {
             }
           }
 
-          // Handle requisition edit route pattern with ID in path
+          // ✅ Handle requisition edit route pattern with ID in path WITH AUTHENTICATION
           if (path.contains('/reqfrom/')) {
             final regex = RegExp(r'/reqfrom/(\d+)');
             final match = regex.firstMatch(path);
@@ -163,19 +163,23 @@ class MyApp extends StatelessWidget {
               final id = int.parse(match.group(1)!);
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => RequisitionEditWrapper(requisitionId: id),
+                builder: (context) => AuthCheckWrapper(
+                  child: RequisitionEditWrapper(requisitionId: id),
+                ),
               );
             }
           }
 
           // EXACT MATCH ROUTING
           switch (path) {
+            // ✅ Workflow routes - NOW WITH AUTHENTICATION
             case '/workflow-creation':
             case '/create':
               return MaterialPageRoute(
                 settings: settings,
-                builder:
-                    (context) => const WorkflowCreationScreen(mode: 'create'),
+                builder: (context) => const AuthCheckWrapper(
+                  child: WorkflowCreationScreen(mode: 'create'),
+                ),
               );
 
             case '/edit':
@@ -191,11 +195,12 @@ class MyApp extends StatelessWidget {
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder:
-                    (context) => WorkflowCreationScreen(
-                      templateId: templateId,
-                      mode: 'edit',
-                    ),
+                builder: (context) => AuthCheckWrapper(
+                  child: WorkflowCreationScreen(
+                    templateId: templateId,
+                    mode: 'edit',
+                  ),
+                ),
               );
 
             case '/view':
@@ -211,18 +216,21 @@ class MyApp extends StatelessWidget {
               }
               return MaterialPageRoute(
                 settings: settings,
-                builder:
-                    (context) => WorkflowCreationScreen(
-                      templateId: templateId,
-                      mode: 'view',
-                    ),
+                builder: (context) => AuthCheckWrapper(
+                  child: WorkflowCreationScreen(
+                    templateId: templateId,
+                    mode: 'view',
+                  ),
+                ),
               );
 
-            // Requisition create route
+            // ✅ Requisition create route - NOW WITH AUTHENTICATION
             case '/reqfrom':
               return MaterialPageRoute(
                 settings: settings,
-                builder: (context) => const RequisitionFormScreen(),
+                builder: (context) => const AuthCheckWrapper(
+                  child: RequisitionFormScreen(),
+                ),
               );
 
             // ✅ Form Builder routes with authentication
@@ -607,9 +615,7 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
               const SizedBox(height: 8),
               Text(
                 'Verifying Django session',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
               ),
             ],
           ),
@@ -617,6 +623,12 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
       );
     }
 
+    // ✅ If not authenticated, show login screen
+    if (!_isAuthenticated) {
+      return const RootRedirectScreen();
+    }
+
+    // ✅ If authenticated, show the protected content
     return widget.child;
   }
 }

@@ -358,12 +358,10 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
     final authData = await authService.checkAuthentication();
 
     if (authData != null) {
-      // User is authenticated, but accessed root directly
-      // Redirect to form builder list
-      print('✅ User authenticated, redirecting to form builder...');
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/form-builder/list');
-      }
+      // User is authenticated
+      print('✅ User authenticated: ${authData['username']}');
+      // ⚠️ REMOVED AUTO-REDIRECT - Stay on current page
+      // Users will naturally be on /reqfrom or /workflow-creation pages
     } else {
       // Not authenticated - show message and redirect to Django
       print('❌ Not authenticated, must login via Django');

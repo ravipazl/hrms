@@ -1,24 +1,87 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:dio/browser.dart';
 import 'package:http/http.dart' as http;
 import '../models/workflow_template.dart';
 import '../models/workflow_node.dart';
 import '../models/workflow_edge.dart';
+import 'auth_service.dart';
 
 
 class WorkflowApiService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
+  
+  final Dio _dio;
+  final AuthService _authService;
+  
+  WorkflowApiService({AuthService? authService}) 
+    : _authService = authService ?? AuthService(),
+      _dio = Dio() {
+    _initializeDio();
+  }
+
+  void _initializeDio() {
+    _dio.options.baseUrl = 'http://127.0.0.1:8000';
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    // CRITICAL: Enable credentials for Flutter Web (session cookies)
+    _dio.options.extra['withCredentials'] = true;
+    
+    // Configure browser adapter for web
+    final adapter = _dio.httpClientAdapter;
+    if (adapter is BrowserHttpClientAdapter) {
+      adapter.withCredentials = true;
+    }
+    
+    // Timeouts
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    
+    // Add interceptor to include CSRF token
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Get CSRF token and add to headers
+          final csrfToken = await _authService.getCsrfToken();
+          if (csrfToken != null) {
+            options.headers['X-CSRFToken'] = csrfToken;
+          }
+          return handler.next(options);
+        },
+        onError: (error, handler) {
+          print('❌ Workflow API Error: ${error.response?.statusCode} - ${error.message}');
+          if (error.response?.statusCode == 403 || error.response?.statusCode == 401) {
+            print('🔐 Authentication required - please login');
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+    
+    // Logging
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: false,
+        requestHeader: true,
+        responseHeader: true,
+        logPrint: (obj) => print('🔄 [Workflow API] $obj'),
+      ),
+    );
+  }
 
 
-  /// Load all available workflow stages
+  /// Load all available workflow stages (PUBLIC - no auth required)
   Future<List<WorkflowStage>> loadStages() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/workflow/stages/'),
-      );
+      final response = await _dio.get('/api/workflow/stages/');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         List<dynamic> stagesList;
         if (data is List) {
@@ -32,7 +95,7 @@ class WorkflowApiService {
         }
 
         return stagesList
-            .map((stage) => WorkflowStage.fromJson(stage))
+            .map((stage) => WorkflowStage.fromJson(stage as Map<String, dynamic>))
             .toList();
       } else {
         throw Exception('Failed to load stages: ${response.statusCode}');
@@ -43,15 +106,13 @@ class WorkflowApiService {
     }
   }
 
-  /// Load all available node types
+  /// Load all available node types (PUBLIC - no auth required)
   Future<List<DatabaseNode>> loadAvailableNodes() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/workflow/nodes/'),
-      );
+      final response = await _dio.get('/api/workflow/nodes/');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         List<dynamic> nodesList;
         if (data is List) {
@@ -65,7 +126,7 @@ class WorkflowApiService {
         }
 
         return nodesList
-            .map((node) => DatabaseNode.fromJson(node))
+            .map((node) => DatabaseNode.fromJson(node as Map<String, dynamic>))
             .toList();
       } else {
         throw Exception('Failed to load nodes: ${response.statusCode}');
@@ -119,7 +180,7 @@ class WorkflowApiService {
     }
   }
 
-  /// Save workflow template
+  /// Save workflow template (REQUIRES AUTH)
   Future<Map<String, dynamic>> saveWorkflowTemplate(
       WorkflowTemplate template) async {
     try {
@@ -138,20 +199,18 @@ class WorkflowApiService {
         }
       };
 
-      http.Response templateResponse;
+      Response templateResponse;
       if (template.id != null) {
         // Update existing template
-        templateResponse = await http.put(
-          Uri.parse('$baseUrl/workflow/templates/${template.id}/'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(templatePayload),
+        templateResponse = await _dio.put(
+          '/api/workflow/templates/${template.id}/',
+          data: templatePayload,
         );
       } else {
         // Create new template
-        templateResponse = await http.post(
-          Uri.parse('$baseUrl/workflow/templates/'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode(templatePayload),
+        templateResponse = await _dio.post(
+          '/api/workflow/templates/',
+          data: templatePayload,
         );
       }
 
@@ -160,7 +219,7 @@ class WorkflowApiService {
         throw Exception('Failed to save template: ${templateResponse.statusCode}');
       }
 
-      final savedTemplate = json.decode(templateResponse.body);
+      final savedTemplate = templateResponse.data;
       print('✅ Template saved: ${savedTemplate['id']}');
 
       // Step 2: Save layout (nodes and edges)
@@ -200,10 +259,9 @@ class WorkflowApiService {
         }).toList(),
       };
 
-      final layoutResponse = await http.post(
-        Uri.parse('$baseUrl/workflow/templates/${savedTemplate['id']}/save_layout/'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(layoutPayload),
+      final layoutResponse = await _dio.post(
+        '/api/workflow/templates/${savedTemplate['id']}/save_layout/',
+        data: layoutPayload,
       );
 
       if (layoutResponse.statusCode != 200 &&
@@ -211,11 +269,11 @@ class WorkflowApiService {
         throw Exception('Failed to save layout: ${layoutResponse.statusCode}');
       }
 
-      final layoutResult = json.decode(layoutResponse.body);
+      final layoutResult = layoutResponse.data;
       print('✅ Layout saved successfully');
 
       return {
-        ...savedTemplate,
+        ...savedTemplate as Map<String, dynamic>,
         'nodes_created': layoutResult['data']?['nodes_created'] ?? template.nodes.length,
         'edges_created': layoutResult['data']?['edges_created'] ?? template.edges.length,
       };
@@ -225,15 +283,13 @@ class WorkflowApiService {
     }
   }
 
-  /// Load workflow template by ID
+  /// Load workflow template by ID (REQUIRES AUTH)
   Future<WorkflowTemplate> loadWorkflowTemplate(int templateId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/workflow/templates/$templateId/'),
-      );
+      final response = await _dio.get('/api/workflow/templates/$templateId/');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         return _convertDbTemplateToUiFormat(data);
       } else {
         throw Exception('Failed to load template: ${response.statusCode}');
@@ -244,17 +300,21 @@ class WorkflowApiService {
     }
   }
 
-  /// Load all workflow templates
+  /// Load all workflow templates (REQUIRES AUTH)
   Future<List<WorkflowTemplate>> loadWorkflowTemplates({int? stageId}) async {
     try {
-      final url = stageId != null
-          ? '$baseUrl/workflow/templates/?stage=$stageId'
-          : '$baseUrl/workflow/templates/';
+      final queryParams = <String, dynamic>{};
+      if (stageId != null) {
+        queryParams['stage'] = stageId;
+      }
       
-      final response = await http.get(Uri.parse(url));
+      final response = await _dio.get(
+        '/api/workflow/templates/',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         List<dynamic> templatesList;
         if (data is List) {

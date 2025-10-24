@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:html' as html;
 import '../providers/workflow_provider.dart';
 import '../models/workflow_template.dart';
 import '../models/workflow_node.dart';
@@ -199,11 +200,29 @@ class _WorkflowApproverSetupScreenState
           _successMessage = 'Workflow created and triggered successfully!';
         });
 
-        // Show success message briefly, then navigate back
-        await Future.delayed(const Duration(seconds: 2));
+        // Show success message briefly
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Workflow created successfully! Redirecting...',
+                    style: TextStyle(fontSize: 14)),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Wait briefly to show success message, then redirect
+        await Future.delayed(const Duration(seconds: 1));
 
         if (mounted) {
-          Navigator.pop(context); // Return to requisition view
+          // ✅ REDIRECT TO DJANGO REQUISITION LIST PAGE (Simple approach)
+          print('✅ Redirecting to Django requisition list');
+          html.window.location.href = 'http://127.0.0.1:8000/requisition/';
         }
       } else {
         throw Exception(executionResult['message'] ?? 'Failed to trigger workflow');

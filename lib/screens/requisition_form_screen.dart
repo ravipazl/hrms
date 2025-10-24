@@ -2459,7 +2459,7 @@ class RequisitionPositionCard {
   RequisitionPositionCard({
     this.typeRequisition = '1',
     this.requirementsReason,
-    this.headcount = '0',
+    this.headcount = '1',
     this.vacancyToBeFilled,
     this.employmentType,
     this.justificationText,

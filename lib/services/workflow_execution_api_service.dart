@@ -1,28 +1,89 @@
 // lib/services/workflow_execution_api_service.dart
-// ✅ FIXED: Use same approach as workflow_api_service.dart (plain http with no auth)
+// ✅ UPDATED to use Dio with authentication
 
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:dio/browser.dart';
 import '../models/workflow_execution/workflow_execution.dart';
 import '../models/workflow_template.dart';
+import 'auth_service.dart';
 
 class WorkflowExecutionApiService {
-  // FIXED: Match React implementation - use /api/v1 instead of /api
   static const String baseUrl = 'http://127.0.0.1:8000/api';
+  
+  final Dio _dio;
+  final AuthService _authService;
+  
+  WorkflowExecutionApiService({AuthService? authService}) 
+    : _authService = authService ?? AuthService(),
+      _dio = Dio() {
+    _initializeDio();
+  }
 
-  /// Get workflow execution status for a requisition
-  /// FIXED: Match React implementation endpoint path
+  void _initializeDio() {
+    _dio.options.baseUrl = 'http://127.0.0.1:8000';
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    // CRITICAL: Enable credentials for Flutter Web (session cookies)
+    _dio.options.extra['withCredentials'] = true;
+    
+    // Configure browser adapter for web
+    final adapter = _dio.httpClientAdapter;
+    if (adapter is BrowserHttpClientAdapter) {
+      adapter.withCredentials = true;
+    }
+    
+    // Timeouts
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    
+    // Add interceptor to include CSRF token
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          // Get CSRF token and add to headers
+          final csrfToken = await _authService.getCsrfToken();
+          if (csrfToken != null) {
+            options.headers['X-CSRFToken'] = csrfToken;
+          }
+          return handler.next(options);
+        },
+        onError: (error, handler) {
+          print('❌ Workflow Execution API Error: ${error.response?.statusCode} - ${error.message}');
+          if (error.response?.statusCode == 403 || error.response?.statusCode == 401) {
+            print('🔐 Authentication required - please login');
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+    
+    // Logging
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: false,
+        requestHeader: true,
+        responseHeader: true,
+        logPrint: (obj) => print('🔄 [Execution API] $obj'),
+      ),
+    );
+  }
+
+  /// Get workflow execution status for a requisition (REQUIRES AUTH)
   Future<Map<String, dynamic>> getWorkflowExecutionStatus(int requisitionId) async {
     try {
       print('🔍 Loading workflow execution status for requisition: $requisitionId');
       
-      // FIXED: Match React endpoint - /workflow/requisition/{id}/execution-status/
-      final response = await http.get(
-        Uri.parse('$baseUrl/workflow/requisition/$requisitionId/execution-status/'),
+      final response = await _dio.get(
+        '/api/workflow/requisition/$requisitionId/execution-status/',
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         if (data['status'] == 'success' && data['data'] != null) {
           print('✅ Workflow execution data loaded');
@@ -50,25 +111,28 @@ class WorkflowExecutionApiService {
     }
   }
 
-  /// Get available workflow templates (filtered by department if provided)
+  /// Get available workflow templates (REQUIRES AUTH)
   Future<List<WorkflowTemplate>> getAvailableTemplates({int? departmentId}) async {
     try {
       print('📋 Loading workflow templates...');
       
-      String url = '$baseUrl/workflow/templates/';
+      final queryParams = <String, dynamic>{};
       if (departmentId != null) {
-        url += '?department=$departmentId';
+        queryParams['department'] = departmentId;
         print('🏢 Filtering by department ID: $departmentId');
       }
       
-      final response = await http.get(Uri.parse(url));
+      final response = await _dio.get(
+        '/api/workflow/templates/',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         print('📝 Raw API Response type: ${data.runtimeType}');
         if (data is Map) {
-          print('📝 Response keys: ${data.keys.toList()}');
+          print('📝 Response keys: ${(data as Map).keys.toList()}');
         }
         
         List<dynamic> templatesList;
@@ -99,40 +163,32 @@ class WorkflowExecutionApiService {
             // Continue parsing other templates instead of throwing
           }
         }
-            
-        print('✅ Loaded ${templates.length} workflow templates successfully');
+        
+        print('✅ Loaded ${templates.length} workflow templates');
         return templates;
       } else {
         throw Exception('Failed to load templates: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error loading workflow templates: $e');
-      print('📝 Stack trace: ${StackTrace.current}');
       return [];
     }
   }
 
-  /// ✅ FIXED: Update requisition status - EXACTLY like workflow_api_service.dart
-  Future<Map<String, dynamic>> updateRequisitionStatus(
-    int requisitionId,
-    String status,
-  ) async {
+  /// Update requisition status (REQUIRES AUTH)
+  Future<Map<String, dynamic>> updateRequisitionStatus(int requisitionId, String status) async {
     try {
-      print('🔄 Updating requisition $requisitionId status to: $status');
-      print('📍 Endpoint: PATCH $baseUrl/requisition/$requisitionId/status/');
+      print('📝 Updating requisition $requisitionId status to: $status');
       
-      // ✅ EXACTLY like workflow_api_service.dart - plain http with only Content-Type
-      final response = await http.patch(
-        Uri.parse('$baseUrl/requisition/$requisitionId/status/'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'status': status}),
+      final response = await _dio.patch(
+        '/api/requisition/$requisitionId/',
+        data: {'status': status},
       );
 
       print('📡 Response status: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         print('✅ Status updated successfully');
         return {
           'success': true,
@@ -140,7 +196,7 @@ class WorkflowExecutionApiService {
           'status': data['status'] ?? status
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = response.data;
         print('❌ Status update failed: $errorData');
         throw Exception(errorData['message'] ?? errorData['error'] ?? 'Failed to update status');
       }
@@ -153,7 +209,7 @@ class WorkflowExecutionApiService {
     }
   }
 
-  /// Trigger workflow execution (create selected_workflow + workflow_steps)
+  /// Trigger workflow execution (REQUIRES AUTH)
   Future<Map<String, dynamic>> triggerWorkflowExecution({
     required int requisitionId,
     required int workflowTemplateId,
@@ -163,18 +219,16 @@ class WorkflowExecutionApiService {
       print('   - Requisition ID: $requisitionId');
       print('   - Template ID: $workflowTemplateId');
       
-      // ✅ EXACTLY like workflow_api_service.dart
-      final response = await http.post(
-        Uri.parse('$baseUrl/workflow/trigger-execution/'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
+      final response = await _dio.post(
+        '/api/workflow/trigger-execution/',
+        data: {
           'requisition_id': requisitionId,
           'workflow_template_id': workflowTemplateId,
-        }),
+        },
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
+        final data = response.data;
         print('✅ Workflow execution created successfully');
         return {
           'success': true,
@@ -182,7 +236,7 @@ class WorkflowExecutionApiService {
           'data': data['data']
         };
       } else {
-        final errorData = json.decode(response.body);
+        final errorData = response.data;
         throw Exception(errorData['message'] ?? 'Failed to trigger workflow');
       }
     } catch (e) {
@@ -194,18 +248,17 @@ class WorkflowExecutionApiService {
     }
   }
 
-  /// Get requisition with workflow details
+  /// Get requisition with workflow details (REQUIRES AUTH)
   Future<Map<String, dynamic>> getRequisitionWithWorkflow(int requisitionId) async {
     try {
       print('🔍 Loading requisition with workflow: $requisitionId');
       
-      // ✅ EXACTLY like workflow_api_service.dart
-      final response = await http.get(
-        Uri.parse('$baseUrl/requisition/$requisitionId/with-approvers/'),
+      final response = await _dio.get(
+        '/api/requisition/$requisitionId/with-approvers/',
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         
         if (data['status'] == 'success' && data['data'] != null) {
           print('✅ Requisition with workflow loaded');

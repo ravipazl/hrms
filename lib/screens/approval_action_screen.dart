@@ -170,7 +170,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
         if (pos.hasError) {
           setState(() {
             _error =
-                'Cannot approve ${pos.approvedCount} for ${pos.typeRequisitionName}. Maximum allowed: ${pos.maxAllowed}';
+                'Cannot approved ${pos.approvedCount} for ${pos.typeRequisitionName}. Maximum allowed: ${pos.maxAllowed}';
           });
           return;
         }

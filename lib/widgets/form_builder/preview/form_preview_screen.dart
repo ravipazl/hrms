@@ -79,8 +79,9 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
     debugPrint('🎯 Form initialized with ${_formData.length} fields');
   }
 
-  // Update field value WITHOUT setState to prevent full form rebuild
+  // Update field value WITHOUT rebuilding the entire form
   void _updateFieldValue(String fieldId, dynamic value) {
+    // Directly update the map without setState to avoid full form rebuild
     _formData[fieldId] = value;
     debugPrint('📝 Field $fieldId updated to: $value');
   }

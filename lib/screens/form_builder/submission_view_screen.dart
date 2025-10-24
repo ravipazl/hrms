@@ -191,9 +191,6 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
               child: _buildGridLayout(formData.fields, _submission!.formData),
             ),
           
-          // Submission Info Footer
-          _buildSubmissionInfo(),
-          
           const SizedBox(height: 32),
         ],
       ),
@@ -328,79 +325,6 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: rowChildren,
-      ),
-    );
-  }
-
-  /// Build submission information footer
-  Widget _buildSubmissionInfo() {
-    if (_submission == null) return const SizedBox.shrink();
-    
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline, size: 20, color: Colors.blue.shade700),
-              const SizedBox(width: 8),
-              Text(
-                'Submission Information',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildInfoRow('Submission ID', _submission!.id),
-          _buildInfoRow('Submitted By', _submission!.displayName),
-          _buildInfoRow(
-            'Submitted At',
-            DateFormat('MMMM dd, yyyy - hh:mm a').format(_submission!.submittedAt),
-          ),
-          if (_submission!.submittedByEmail != null)
-            _buildInfoRow('Email', _submission!.submittedByEmail!),
-          if (_submission!.platform != null)
-            _buildInfoRow('Platform', _submission!.platform!),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-        ],
       ),
     );
   }

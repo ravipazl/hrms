@@ -647,13 +647,31 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
     );
   }
 
-  // DATE FIELD - Uniform style with icon
+  // DATE FIELD - Uniform style with icon and local state
   Widget _buildDateField(String fieldId, String label, dynamic value) {
+    // Parse current value to DateTime if it exists
+    DateTime? selectedDate;
+    if (value != null && value.toString().isNotEmpty) {
+      try {
+        selectedDate = DateTime.parse(value.toString());
+      } catch (e) {
+        selectedDate = null;
+      }
+    }
+
+    // Format display text
+    String displayText;
+    if (selectedDate != null) {
+      displayText = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+    } else {
+      displayText = label;
+    }
+
     return InkWell(
       onTap: () async {
         final date = await showDatePicker(
           context: context,
-          initialDate: DateTime.now(),
+          initialDate: selectedDate ?? DateTime.now(),
           firstDate: DateTime(1900),
           lastDate: DateTime(2100),
           builder: (context, child) {
@@ -669,10 +687,11 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
           },
         );
         if (date != null) {
-          _handleEmbeddedFieldChange(
-            fieldId,
-            date.toIso8601String().split('T')[0],
-          );
+          final formattedDate = date.toIso8601String().split('T')[0];
+          setState(() {
+            _fieldValues[fieldId] = formattedDate;
+          });
+          _handleEmbeddedFieldChange(fieldId, formattedDate);
         }
       },
       borderRadius: BorderRadius.circular(4),
@@ -694,9 +713,9 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    value?.toString() ?? label,
+                    displayText,
                     style: _getFieldTextStyle(
-                      color: value == null ? Colors.grey[400] : Colors.black87,
+                      color: selectedDate == null ? Colors.grey[400] : Colors.black87,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

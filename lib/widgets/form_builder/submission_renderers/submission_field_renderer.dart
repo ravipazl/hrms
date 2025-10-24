@@ -110,154 +110,446 @@ class SubmissionFieldRenderer extends StatelessWidget {
     }
   }
 
-  // FIXED: Rich text with proper inline data handling
+  // Rich text - render with Slate JSON structure + embedded values
   Widget _buildRichTextValue() {
-    debugPrint('📝 Rich Text Value Type: ${value.runtimeType}');
+    debugPrint('\n=== RICH TEXT SUBMISSION DATA ===');
+    debugPrint('Value type: ${value.runtimeType}');
+    debugPrint('Value: $value');
     
     if (value is Map) {
-      final richTextMap = value as Map<String, dynamic>;
-      final content = richTextMap['content'] as String? ?? 
-                      richTextMap['textContent'] as String? ?? 
-                      richTextMap['html'] as String? ?? '';
-      final inlineData = richTextMap['inlineData'] as Map? ?? {};
-      
-      debugPrint('📝 Rich Text Content Length: ${content.length}');
-      debugPrint('📝 Inline Data Keys: ${inlineData.keys.toList()}');
-      
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Main HTML content
-            if (content.isNotEmpty) ...[
-              Html(
-                data: content,
-                style: {
-                  "body": Style(
-                    margin: Margins.zero,
-                    padding: HtmlPaddings.zero,
-                    fontSize: FontSize(15),
-                  ),
-                  "p": Style(margin: Margins.only(bottom: 8)),
-                  "h1": Style(fontSize: FontSize(24), fontWeight: FontWeight.bold),
-                  "h2": Style(fontSize: FontSize(20), fontWeight: FontWeight.bold),
-                  "h3": Style(fontSize: FontSize(18), fontWeight: FontWeight.bold),
-                  "ul": Style(margin: Margins.only(left: 20, bottom: 8)),
-                  "ol": Style(margin: Margins.only(left: 20, bottom: 8)),
-                },
-              ),
-            ],
-            
-            // Inline data fields (FIXED)
-            if (inlineData.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.format_list_bulleted, 
-                          size: 16, 
-                          color: Colors.blue.shade700),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Additional Fields',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...inlineData.entries.map((entry) {
-                      final fieldData = entry.value as Map<String, dynamic>?;
-                      if (fieldData == null) return const SizedBox.shrink();
-                      
-                      final label = fieldData['label'] as String? ?? entry.key;
-                      final fieldValue = fieldData['value']?.toString() ?? 'No response';
-                      
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                label,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                fieldValue,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
+      final map = value as Map<String, dynamic>;
+      debugPrint('Map keys: ${map.keys.toList()}');
+      map.forEach((key, val) {
+        debugPrint('  [$key]: ${val.runtimeType}');
+        if (val is String && val.length < 200) {
+          debugPrint('    Value: $val');
+        } else if (val is Map) {
+          debugPrint('    Map keys: ${(val as Map).keys.toList()}');
+        } else if (val is List) {
+          debugPrint('    List length: ${(val as List).length}');
+        }
+      });
+    } else if (value is String) {
+      debugPrint('String value (first 200 chars): ${value.toString().substring(0, value.toString().length > 200 ? 200 : value.toString().length)}');
     }
     
-    // Fallback for string HTML
+    debugPrint('\nField props keys: ${field.props.keys.toList()}');
+    if (field.props.containsKey('content')) {
+      debugPrint('Field has content in props: ${field.props['content'].runtimeType}');
+    }
+    if (field.props.containsKey('embeddedFields')) {
+      final embedded = field.props['embeddedFields'] as List?;
+      debugPrint('Embedded fields count: ${embedded?.length ?? 0}');
+      if (embedded != null && embedded.isNotEmpty) {
+        for (var ef in embedded) {
+          if (ef is Map) {
+            debugPrint('  - ${ef['label']} (${ef['id']}): ${ef['fieldType']}');
+          }
+        }
+      }
+    }
+    debugPrint('=================================\n');
+    
+    // NEW FORMAT: Check if value contains Slate structure with embedded values
+    if (value is Map) {
+      final valueMap = value as Map<String, dynamic>;
+      
+      // Check if this is the new format with slateContent + embeddedValues
+      if (valueMap.containsKey('slateContent') || valueMap.containsKey('content')) {
+        return _buildSlateWithFormatting(valueMap);
+      }
+      
+      // Old format: Try to extract HTML
+      final htmlContent = valueMap['html'] as String? ?? 
+                         valueMap['textContent'] as String? ?? '';
+      if (htmlContent.isNotEmpty) {
+        return _buildHtmlContent(htmlContent);
+      }
+    }
+    
+    // OLD FORMAT: Direct HTML string
     if (value is String) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Html(
-          data: value,
-          style: {
-            "body": Style(
-              margin: Margins.zero,
-              padding: HtmlPaddings.zero,
-              fontSize: FontSize(15),
-            ),
-          },
-        ),
-      );
+      return _buildHtmlContent(value.toString());
     }
     
-    return _buildTextValue();
+    return const Text('No content', style: TextStyle(color: Colors.grey));
+  }
+  
+  // NEW: Render Slate JSON with formatting properties
+  Widget _buildSlateWithFormatting(Map<String, dynamic> data) {
+    // Get Slate content from field definition (template structure)
+    final slateContent = field.props['content'] as List<dynamic>? ?? 
+                        data['slateContent'] as List<dynamic>? ?? 
+                        data['content'] as List<dynamic>? ?? [];
+    
+    // Get embedded field values from submission data
+    final embeddedValues = data['embeddedValues'] as Map<String, dynamic>? ?? 
+                          data['values'] as Map<String, dynamic>? ?? {};
+    
+    debugPrint('📋 Slate elements: ${slateContent.length}');
+    debugPrint('📋 Embedded values: ${embeddedValues.keys.toList()}');
+    
+    if (slateContent.isEmpty) {
+      return const Text('No content', style: TextStyle(color: Colors.grey));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: slateContent.map((element) {
+        return _buildSlateElement(
+          element as Map<String, dynamic>, 
+          embeddedValues,
+        );
+      }).toList(),
+    );
+  }
+  
+  Widget _buildSlateElement(
+    Map<String, dynamic> element, 
+    Map<String, dynamic> embeddedValues,
+  ) {
+    final type = element['type'] as String?;
+    final children = element['children'] as List<dynamic>? ?? [];
+    final align = element['align'] as String?;
+    
+    final baseStyle = _getSlateTextStyle(type);
+
+    // Handle lists
+    if (type == 'bulleted-list' || type == 'numbered-list') {
+      return _buildSlateList(type, children, baseStyle, embeddedValues);
+    }
+
+    // Determine text alignment
+    TextAlign textAlign = TextAlign.left;
+    if (align == 'center') {
+      textAlign = TextAlign.center;
+    } else if (align == 'right') {
+      textAlign = TextAlign.right;
+    } else if (align == 'justify') {
+      textAlign = TextAlign.justify;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SelectableText.rich(
+        TextSpan(
+          children: _buildSlateTextSpans(children, baseStyle, embeddedValues),
+        ),
+        textAlign: textAlign,
+      ),
+    );
+  }
+  
+  List<InlineSpan> _buildSlateTextSpans(
+    List<dynamic> children,
+    TextStyle baseStyle,
+    Map<String, dynamic> embeddedValues,
+  ) {
+    final List<InlineSpan> spans = [];
+
+    for (var child in children) {
+      if (child is Map<String, dynamic> && child.containsKey('text')) {
+        final text = child['text'] as String;
+
+        // Check if text contains embedded field markers
+        if (_containsEmbeddedField(text)) {
+          spans.addAll(_parseSlateTextWithFields(
+            text, 
+            child, 
+            baseStyle, 
+            embeddedValues,
+          ));
+        } else if (text.isNotEmpty) {
+          spans.add(_createSlateTextSpan(text, child, baseStyle));
+        }
+      }
+    }
+
+    return spans;
+  }
+  
+  List<InlineSpan> _parseSlateTextWithFields(
+    String text,
+    Map<String, dynamic> styling,
+    TextStyle baseStyle,
+    Map<String, dynamic> embeddedValues,
+  ) {
+    final List<InlineSpan> spans = [];
+    final emojiPattern = RegExp(r'([📝🔢📧📅📋☑️🔘📄📌])\s*\[(.*?)\]\s*');
+
+    int lastMatchEnd = 0;
+    final matches = emojiPattern.allMatches(text);
+
+    for (var match in matches) {
+      // Add text before the field
+      if (match.start > lastMatchEnd) {
+        final beforeText = text.substring(lastMatchEnd, match.start);
+        if (beforeText.isNotEmpty) {
+          spans.add(_createSlateTextSpan(beforeText, styling, baseStyle));
+        }
+      }
+
+      final label = match.group(2) ?? '';
+      final embeddedField = _findEmbeddedFieldByLabel(label);
+
+      if (embeddedField != null) {
+        final fieldId = embeddedField['id'] as String;
+        final fieldValue = embeddedValues[fieldId];
+
+        // Show the value if exists, otherwise show placeholder
+        if (fieldValue != null && fieldValue.toString().isNotEmpty) {
+          spans.add(TextSpan(
+            text: ' ${fieldValue.toString()} ',
+            style: _applySlateTextStyling(baseStyle, styling).copyWith(
+              backgroundColor: Colors.blue.shade50,
+              fontWeight: FontWeight.w600,
+              color: Colors.blue.shade900,
+            ),
+          ));
+        } else {
+          spans.add(TextSpan(
+            text: ' [$label] ',
+            style: _applySlateTextStyling(baseStyle, styling).copyWith(
+              color: Colors.grey.shade400,
+              fontStyle: FontStyle.italic,
+              backgroundColor: Colors.grey.shade100,
+            ),
+          ));
+        }
+      } else {
+        spans.add(_createSlateTextSpan('[${label}]', styling, baseStyle));
+      }
+
+      lastMatchEnd = match.end;
+    }
+
+    // Add remaining text
+    if (lastMatchEnd < text.length) {
+      final remainingText = text.substring(lastMatchEnd);
+      if (remainingText.isNotEmpty) {
+        spans.add(_createSlateTextSpan(remainingText, styling, baseStyle));
+      }
+    }
+
+    return spans;
+  }
+  
+  Map<String, dynamic>? _findEmbeddedFieldByLabel(String label) {
+    final embeddedFields = field.props['embeddedFields'] as List<dynamic>? ?? [];
+    for (var field in embeddedFields) {
+      if (field is Map && field['label'] == label) {
+        return Map<String, dynamic>.from(field);
+      }
+    }
+    return null;
+  }
+  
+  Widget _buildSlateList(
+    String? type,
+    List<dynamic> children,
+    TextStyle baseStyle,
+    Map<String, dynamic> embeddedValues,
+  ) {
+    final isNumbered = type == 'numbered-list';
+    
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isNumbered ? '1. ' : '• ',
+            style: baseStyle,
+          ),
+          Expanded(
+            child: SelectableText.rich(
+              TextSpan(
+                children: _buildSlateTextSpans(children, baseStyle, embeddedValues),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  TextSpan _createSlateTextSpan(
+    String text,
+    Map<String, dynamic> styling,
+    TextStyle baseStyle,
+  ) {
+    return TextSpan(
+      text: text,
+      style: _applySlateTextStyling(baseStyle, styling),
+    );
+  }
+  
+  TextStyle _getSlateTextStyle(String? type) {
+    switch (type) {
+      case 'heading-one':
+      case 'h1':
+        return const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          height: 1.3,
+          color: Colors.black87,
+        );
+      case 'heading-two':
+      case 'h2':
+        return const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          height: 1.3,
+          color: Colors.black87,
+        );
+      case 'heading-three':
+      case 'h3':
+        return const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          height: 1.3,
+          color: Colors.black87,
+        );
+      case 'blockquote':
+        return const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          fontStyle: FontStyle.italic,
+          color: Colors.black54,
+        );
+      default:
+        return const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          color: Colors.black87,
+        );
+    }
+  }
+  
+  bool _containsEmbeddedField(String text) {
+    final emojiPattern = RegExp(r'[📝🔢📧📅📋☑️🔘📄📌]\s*\[.*?\]');
+    return emojiPattern.hasMatch(text);
+  }
+  
+  TextStyle _applySlateTextStyling(TextStyle baseStyle, Map<String, dynamic> styling) {
+    TextStyle style = baseStyle;
+
+    if (styling['bold'] == true) {
+      style = style.copyWith(fontWeight: FontWeight.bold);
+    }
+    if (styling['italic'] == true) {
+      style = style.copyWith(fontStyle: FontStyle.italic);
+    }
+    if (styling['underline'] == true) {
+      style = style.copyWith(
+        decoration: style.decoration != null
+            ? TextDecoration.combine([style.decoration!, TextDecoration.underline])
+            : TextDecoration.underline,
+      );
+    }
+    if (styling['strikethrough'] == true || styling['strike'] == true) {
+      style = style.copyWith(
+        decoration: style.decoration != null
+            ? TextDecoration.combine([style.decoration!, TextDecoration.lineThrough])
+            : TextDecoration.lineThrough,
+      );
+    }
+    if (styling['code'] == true) {
+      style = style.copyWith(
+        fontFamily: 'monospace',
+        backgroundColor: Colors.grey[200],
+      );
+    }
+
+    return style;
+  }
+  
+  // Render HTML content (for old submissions)
+  Widget _buildHtmlContent(String htmlContent) {
+    return Html(
+      data: htmlContent,
+      style: {
+        "body": Style(
+          margin: Margins.zero,
+          padding: HtmlPaddings.zero,
+          fontSize: FontSize(15),
+          lineHeight: const LineHeight(1.5),
+        ),
+        "p": Style(
+          margin: Margins.only(bottom: 8),
+        ),
+        "h1": Style(
+          fontSize: FontSize(24),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 12, top: 8),
+        ),
+        "h2": Style(
+          fontSize: FontSize(20),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 10, top: 8),
+        ),
+        "h3": Style(
+          fontSize: FontSize(18),
+          fontWeight: FontWeight.bold,
+          margin: Margins.only(bottom: 8, top: 6),
+        ),
+        "strong": Style(
+          fontWeight: FontWeight.bold,
+        ),
+        "b": Style(
+          fontWeight: FontWeight.bold,
+        ),
+        "em": Style(
+          fontStyle: FontStyle.italic,
+        ),
+        "i": Style(
+          fontStyle: FontStyle.italic,
+        ),
+        "u": Style(
+          textDecoration: TextDecoration.underline,
+        ),
+        "s": Style(
+          textDecoration: TextDecoration.lineThrough,
+        ),
+        "strike": Style(
+          textDecoration: TextDecoration.lineThrough,
+        ),
+        "ul": Style(
+          margin: Margins.only(left: 20, bottom: 8),
+          padding: HtmlPaddings.only(left: 20),
+        ),
+        "ol": Style(
+          margin: Margins.only(left: 20, bottom: 8),
+          padding: HtmlPaddings.only(left: 20),
+        ),
+        "li": Style(
+          margin: Margins.only(bottom: 4),
+          display: Display.listItem,
+        ),
+        "blockquote": Style(
+          margin: Margins.only(left: 20, top: 8, bottom: 8),
+          padding: HtmlPaddings.only(left: 12),
+          border: Border(
+            left: BorderSide(
+              color: Colors.grey.shade400,
+              width: 4,
+            ),
+          ),
+          backgroundColor: Colors.grey.shade50,
+        ),
+        "code": Style(
+          fontFamily: 'monospace',
+          backgroundColor: Colors.grey.shade200,
+          padding: HtmlPaddings.all(2),
+        ),
+        "pre": Style(
+          fontFamily: 'monospace',
+          backgroundColor: Colors.grey.shade100,
+          padding: HtmlPaddings.all(8),
+          margin: Margins.only(top: 8, bottom: 8),
+        ),
+      },
+    );
   }
 
   Widget _buildTableValue() {

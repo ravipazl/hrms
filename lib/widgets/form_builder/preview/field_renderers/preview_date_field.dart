@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../models/form_builder/form_field.dart' as form_models;
 
-/// Preview Date Field - Functional date picker field
-class PreviewDateField extends StatelessWidget {
+/// Preview Date Field - Functional date picker field with internal state
+class PreviewDateField extends StatefulWidget {
   final form_models.FormField field;
   final dynamic value;
   final Function(dynamic) onChanged;
@@ -16,25 +16,47 @@ class PreviewDateField extends StatelessWidget {
     required this.onChanged,
     this.hasError = false,
   });
- 
+
   @override
-  Widget build(BuildContext context) {
-    DateTime? selectedDate;
-    
-    if (value != null) {
-      if (value is DateTime) {
-        selectedDate = value;
-      } else if (value is String && value.isNotEmpty) {
+  State<PreviewDateField> createState() => _PreviewDateFieldState();
+}
+
+class _PreviewDateFieldState extends State<PreviewDateField> {
+  DateTime? _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDate();
+  }
+
+  void _initializeDate() {
+    if (widget.value != null) {
+      if (widget.value is DateTime) {
+        _selectedDate = widget.value;
+      } else if (widget.value is String && widget.value.isNotEmpty) {
         try {
-          selectedDate = DateTime.parse(value);
+          _selectedDate = DateTime.parse(widget.value);
         } catch (e) {
-          selectedDate = null;
+          _selectedDate = null;
         }
       }
     }
+  }
 
-    final dateText = selectedDate != null
-        ? DateFormat('MMM dd, yyyy').format(selectedDate)
+  @override
+  void didUpdateWidget(PreviewDateField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update if value changed externally (e.g., form reset)
+    if (widget.value != oldWidget.value) {
+      _initializeDate();
+    }
+  }
+ 
+  @override
+  Widget build(BuildContext context) {
+    final dateText = _selectedDate != null
+        ? DateFormat('MMM dd, yyyy').format(_selectedDate!)
         : '';
 
     return Column(
@@ -44,13 +66,13 @@ class PreviewDateField extends StatelessWidget {
         Row(
           children: [
             Text(
-              field.label,
+              widget.field.label,
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            if (field.required)
+            if (widget.field.required)
               const Text(
                 ' *',
                 style: TextStyle(
@@ -69,7 +91,7 @@ class PreviewDateField extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               border: Border.all(
-                color: hasError ? Colors.red : Colors.grey[300]!,
+                color: widget.hasError ? Colors.red : Colors.grey[300]!,
               ),
               borderRadius: BorderRadius.circular(8),
               color: Colors.white,
@@ -94,7 +116,12 @@ class PreviewDateField extends StatelessWidget {
                 if (dateText.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.clear, size: 20),
-                    onPressed: () => onChanged(''),
+                    onPressed: () {
+                      setState(() {
+                        _selectedDate = null;
+                      });
+                      widget.onChanged('');
+                    },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -109,20 +136,19 @@ class PreviewDateField extends StatelessWidget {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: value is DateTime 
-          ? value 
-          : (value is String && value.isNotEmpty)
-              ? DateTime.tryParse(value) ?? DateTime.now()
-              : DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
     );
 
     if (picked != null) {
-      // ✅ Format date as YYYY-MM-DD for backend compatibility
+      setState(() {
+        _selectedDate = picked;
+      });
+      // Format date as YYYY-MM-DD for backend compatibility
       final formattedDate = DateFormat('yyyy-MM-dd').format(picked);
       debugPrint('📅 Date selected: $formattedDate');
-      onChanged(formattedDate);
+      widget.onChanged(formattedDate);
     }
   }
 }

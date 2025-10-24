@@ -609,7 +609,13 @@ class _TextField extends StatefulWidget {
   final String? placeholder;
   final Function(String) onChanged;
 
-  const _TextField({required this.label, required this.value, this.placeholder, required this.onChanged});
+  const _TextField({
+    super.key,
+    required this.label, 
+    required this.value, 
+    this.placeholder, 
+    required this.onChanged,
+  });
 
   @override
   State<_TextField> createState() => _TextFieldState();
@@ -617,39 +623,27 @@ class _TextField extends StatefulWidget {
 
 class _TextFieldState extends State<_TextField> {
   late TextEditingController _controller;
-  late FocusNode _focusNode;
-  bool _isInternalUpdate = false;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
     _controller = TextEditingController(text: widget.value);
-    _controller.addListener(_onTextChanged);
-  }
-
-  void _onTextChanged() {
-    if (!_isInternalUpdate) {
-      widget.onChanged(_controller.text);
-    }
   }
 
   @override
   void didUpdateWidget(_TextField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value && widget.value != _controller.text && !_focusNode.hasFocus) {
-      _isInternalUpdate = true;
+    // Only update from parent when not actively editing
+    if (!_isEditing && widget.value != _controller.text) {
       _controller.text = widget.value;
-      _controller.selection = TextSelection.fromPosition(TextPosition(offset: widget.value.length));
-      _isInternalUpdate = false;
+      _controller.selection = TextSelection.collapsed(offset: widget.value.length);
     }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onTextChanged);
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -662,13 +656,25 @@ class _TextFieldState extends State<_TextField> {
         const SizedBox(height: 4),
         TextField(
           controller: _controller,
-          focusNode: _focusNode,
           decoration: InputDecoration(
             hintText: widget.placeholder,
             border: const OutlineInputBorder(),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             isDense: true,
           ),
+          onChanged: (value) {
+            _isEditing = true;
+            widget.onChanged(value);
+          },
+          onTap: () {
+            _isEditing = true;
+          },
+          onEditingComplete: () {
+            _isEditing = false;
+          },
+          onSubmitted: (value) {
+            _isEditing = false;
+          },
         ),
       ],
     );
@@ -688,39 +694,27 @@ class _TextAreaField extends StatefulWidget {
 
 class _TextAreaFieldState extends State<_TextAreaField> {
   late TextEditingController _controller;
-  late FocusNode _focusNode;
-  bool _isInternalUpdate = false;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
     _controller = TextEditingController(text: widget.value);
-    _controller.addListener(_onTextChanged);
-  }
-
-  void _onTextChanged() {
-    if (!_isInternalUpdate) {
-      widget.onChanged(_controller.text);
-    }
   }
 
   @override
   void didUpdateWidget(_TextAreaField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value && widget.value != _controller.text && !_focusNode.hasFocus) {
-      _isInternalUpdate = true;
+    // Only update from parent when not actively editing
+    if (!_isEditing && widget.value != _controller.text) {
       _controller.text = widget.value;
-      _controller.selection = TextSelection.fromPosition(TextPosition(offset: widget.value.length));
-      _isInternalUpdate = false;
+      _controller.selection = TextSelection.collapsed(offset: widget.value.length);
     }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onTextChanged);
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -733,9 +727,25 @@ class _TextAreaFieldState extends State<_TextAreaField> {
         const SizedBox(height: 4),
         TextField(
           controller: _controller,
-          focusNode: _focusNode,
-          decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.all(12), isDense: true),
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(), 
+            contentPadding: EdgeInsets.all(12), 
+            isDense: true,
+          ),
           maxLines: 3,
+          onChanged: (value) {
+            _isEditing = true;
+            widget.onChanged(value);
+          },
+          onTap: () {
+            _isEditing = true;
+          },
+          onEditingComplete: () {
+            _isEditing = false;
+          },
+          onSubmitted: (value) {
+            _isEditing = false;
+          },
         ),
       ],
     );

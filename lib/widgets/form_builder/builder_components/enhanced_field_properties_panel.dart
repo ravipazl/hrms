@@ -109,6 +109,41 @@ class EnhancedFieldPropertiesPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Back to Form Properties Button
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              onTap: () {
+                // Deselect field to show form properties
+                provider.selectField(null);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_back, size: 16, color: Colors.blue[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Back to Form Properties',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.settings, size: 16, color: Colors.blue[700]),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Row(
             children: [
               const Expanded(

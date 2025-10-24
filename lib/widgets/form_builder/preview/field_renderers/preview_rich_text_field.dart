@@ -32,6 +32,9 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
     _initializeEmbeddedFields();
     _initializeValues();
     _initializeControllers();
+    
+    // Call immediately to ensure proper structure is set before submission
+    _notifyParent();
   }
 
   void _initializeEmbeddedFields() {
@@ -86,10 +89,86 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
   }
 
   void _handleEmbeddedFieldChange(String fieldId, dynamic value) {
-    // Update internal state without setState to avoid rebuild
+    // Update internal state WITHOUT setState to avoid rebuild/data loss
     _fieldValues[fieldId] = value;
-    // Notify parent
-    widget.onChanged(_fieldValues);
+    
+    // Always send proper rich text object structure to backend
+    _notifyParent();
+  }
+  
+  void _notifyParent() {
+    // CRITICAL FIX: Build HTML by merging template content with inline field values
+    print('📤 Rich text building merged HTML...');
+    
+    // Extract template content from field props
+    final slateContent = widget.field.props['content'] as List<dynamic>? ?? [];
+    final buffer = StringBuffer('<p>');
+    
+    // Process each slate element to build HTML
+    for (var element in slateContent) {
+      if (element is Map<String, dynamic>) {
+        final children = element['children'] as List<dynamic>? ?? [];
+        
+        for (var child in children) {
+          if (child is Map<String, dynamic> && child.containsKey('text')) {
+            final text = child['text'] as String;
+            
+            // Replace inline field placeholders with actual values
+            final mergedText = _replaceInlineFieldPlaceholders(text);
+            buffer.write(mergedText);
+          }
+        }
+      }
+    }
+    
+    buffer.write('</p>');
+    
+    // Clean up: remove excessive whitespace, newlines, AND all emojis
+    var mergedHtml = buffer.toString()
+        .replaceAll('\n\n', ' ')  // Replace double newlines with space
+        .replaceAll('\n', ' ')     // Replace single newlines with space
+        .replaceAll(RegExp(r'\s+'), ' ')  // Collapse multiple spaces
+        .replaceAll(RegExp(r'[📝🔢📧📅📋☑️🔘📄📌]'), '')  // Remove all emojis
+        .trim();
+    
+    // Ensure we have at least empty paragraph
+    if (mergedHtml == '<p></p>' || mergedHtml == '<p> </p>') {
+      mergedHtml = '<p></p>';
+    }
+    
+    print('📏 Merged HTML: $mergedHtml');
+    print('📋 Inline values: $_fieldValues');
+    print('📐 HTML length: ${mergedHtml.length} characters');
+    
+    // Send the merged HTML string to parent
+    widget.onChanged(mergedHtml);
+  }
+  
+  /// Replace placeholders like [Text Input] with actual field values
+  String _replaceInlineFieldPlaceholders(String text) {
+    // Pattern to match emoji + [Label]
+    final emojiPattern = RegExp(r'([📝🔢📧📅📋☑️🔘📄📌])\s*\[(.*?)\]\s*');
+    
+    return text.replaceAllMapped(emojiPattern, (match) {
+      final label = match.group(2) ?? '';
+      final embeddedField = _findEmbeddedFieldByLabel(label);
+      
+      if (embeddedField != null) {
+        final fieldId = embeddedField['id'] as String;
+        final fieldValue = _fieldValues[fieldId];
+        
+        // Replace emoji + [Label] with just the value (no emoji, no placeholder)
+        if (fieldValue != null && fieldValue.toString().isNotEmpty) {
+          return fieldValue.toString();
+        } else {
+          // If no value, keep the placeholder but remove emoji
+          return '[${label}]';
+        }
+      }
+      
+      // Keep original if no matching field found
+      return match.group(0) ?? '';
+    });
   }
 
   @override
@@ -530,8 +609,7 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
             ),
             style: _getFieldTextStyle(),
             onChanged: (newValue) {
-              _fieldValues[fieldId] = newValue;
-              widget.onChanged(_fieldValues);
+              _handleEmbeddedFieldChange(fieldId, newValue);
             },
           ),
         ),
@@ -563,20 +641,37 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
         keyboardType: TextInputType.number,
         onChanged: (newValue) {
           final numValue = int.tryParse(newValue) ?? double.tryParse(newValue);
-          _fieldValues[fieldId] = numValue ?? newValue;
-          widget.onChanged(_fieldValues);
+          _handleEmbeddedFieldChange(fieldId, numValue ?? newValue);
         },
       ),
     );
   }
 
-  // DATE FIELD - Uniform style with icon
+  // DATE FIELD - Uniform style with icon and local state
   Widget _buildDateField(String fieldId, String label, dynamic value) {
+    // Parse current value to DateTime if it exists
+    DateTime? selectedDate;
+    if (value != null && value.toString().isNotEmpty) {
+      try {
+        selectedDate = DateTime.parse(value.toString());
+      } catch (e) {
+        selectedDate = null;
+      }
+    }
+
+    // Format display text
+    String displayText;
+    if (selectedDate != null) {
+      displayText = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+    } else {
+      displayText = label;
+    }
+
     return InkWell(
       onTap: () async {
         final date = await showDatePicker(
           context: context,
-          initialDate: DateTime.now(),
+          initialDate: selectedDate ?? DateTime.now(),
           firstDate: DateTime(1900),
           lastDate: DateTime(2100),
           builder: (context, child) {
@@ -592,10 +687,11 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
           },
         );
         if (date != null) {
-          _handleEmbeddedFieldChange(
-            fieldId,
-            date.toIso8601String().split('T')[0],
-          );
+          final formattedDate = date.toIso8601String().split('T')[0];
+          setState(() {
+            _fieldValues[fieldId] = formattedDate;
+          });
+          _handleEmbeddedFieldChange(fieldId, formattedDate);
         }
       },
       borderRadius: BorderRadius.circular(4),
@@ -617,9 +713,9 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    value?.toString() ?? label,
+                    displayText,
                     style: _getFieldTextStyle(
-                      color: value == null ? Colors.grey[400] : Colors.black87,
+                      color: selectedDate == null ? Colors.grey[400] : Colors.black87,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

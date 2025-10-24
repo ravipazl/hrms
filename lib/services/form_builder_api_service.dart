@@ -4,7 +4,6 @@ import 'package:dio/browser.dart';
 import '../models/form_builder/form_template.dart';
 import '../models/form_builder/form_submission.dart';
 import '../models/form_builder/form_data.dart' as form_models;
-import '../models/form_builder/form_submission.dart';
 import '../models/form_builder/file_metadata.dart';
 import '../utils/json_schema_generator.dart';
 import 'auth_service.dart';
@@ -37,7 +36,7 @@ class FormBuilderAPIService {
       adapter.withCredentials = true;
     }
     
-    // Auth interceptor - Check Django session authentication and add CSRF token
+    // Auth interceptor
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         // Check auth before each request
@@ -58,9 +57,6 @@ class FormBuilderAPIService {
           final csrfToken = await _authService.getCsrfToken();
           if (csrfToken != null) {
             options.headers['X-CSRFToken'] = csrfToken;
-            print('✅ CSRF token added to ${options.method} request: ${csrfToken.substring(0, 10)}...');
-          } else {
-            print('⚠️ No CSRF token available for ${options.method} request');
           }
         }
         
@@ -69,7 +65,6 @@ class FormBuilderAPIService {
       onError: (error, handler) async {
         if (error.response?.statusCode == 401 || 
             error.response?.statusCode == 403) {
-          print('🔒 Auth error - clearing cache');
           _authService.clearCache();
         }
         return handler.next(error);
@@ -81,7 +76,7 @@ class FormBuilderAPIService {
 
     _dio.interceptors.add(
       LogInterceptor(
-        requestBody: false, // Too verbose
+        requestBody: false,
         responseBody: false,
         request: true,
         requestHeader: false,
@@ -94,7 +89,6 @@ class FormBuilderAPIService {
 
   // ==================== TEMPLATE OPERATIONS ====================
   
-  /// Get all templates with optional search
   Future<List<FormTemplate>> getTemplates({String? searchQuery}) async {
     try {
       final endpoint = searchQuery != null && searchQuery.isNotEmpty
@@ -112,25 +106,19 @@ class FormBuilderAPIService {
         throw Exception(response.data['message'] ?? 'Failed to load templates');
       }
     } on DioException catch (e) {
-      print('❌ Network error: ${e.message}');
       if (e.type == DioExceptionType.cancel) {
         throw Exception('Not authenticated');
       }
       throw Exception('Network error: ${e.message}');
-    } catch (e) {
-      print('❌ Error: $e');
-      rethrow;
     }
   }
 
-  /// Get specific template by ID
   Future<FormTemplate> getTemplate(String templateId) async {
     try {
       print('📄 Fetching template: $templateId');
       final response = await _dio.get('/templates/$templateId/');
 
       if (response.data['success'] == true) {
-        print('✅ Template loaded');
         return FormTemplate.fromJson(response.data['data']);
       } else {
         throw Exception(response.data['message'] ?? 'Failed to load template');
@@ -140,19 +128,15 @@ class FormBuilderAPIService {
         throw Exception('Not authenticated');
       }
       throw Exception('Network error: ${e.message}');
-    } catch (e) {
-      rethrow;
     }
   }
 
-  /// Load template for editing
   Future<form_models.FormData> loadTemplateForEditing(String templateId) async {
     try {
       print('✏️ Loading for edit: $templateId');
       final response = await _dio.get('/load/$templateId/');
 
       if (response.data['success'] == true) {
-        print('✅ Loaded for editing');
         return form_models.FormData.fromJson(response.data['data']);
       } else {
         throw Exception(response.data['message'] ?? 'Failed to load');
@@ -165,7 +149,6 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Save new template
   Future<FormTemplate> saveTemplate(form_models.FormData formData) async {
     try {
       final name = formData.name ?? formData.generateName();
@@ -187,7 +170,6 @@ class FormBuilderAPIService {
       final response = await _dio.post('/save/', data: requestData);
 
       if (response.data['success'] == true) {
-        print('✅ Template saved!');
         final responseData = response.data['data'];
         if (responseData != null) {
           return FormTemplate.fromJson(responseData);
@@ -222,7 +204,6 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Update existing template
   Future<FormTemplate> updateTemplate(
       String templateId, form_models.FormData formData) async {
     try {
@@ -243,7 +224,6 @@ class FormBuilderAPIService {
       final response = await _dio.put('/templates/$templateId/', data: requestData);
 
       if (response.data['success'] == true) {
-        print('✅ Template updated!');
         return FormTemplate.fromJson(response.data['data']);
       } else {
         throw Exception(response.data['message'] ?? 'Failed to update');
@@ -256,15 +236,12 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Delete template
   Future<void> deleteTemplate(String templateId) async {
     try {
       print('🗑️ Deleting template: $templateId');
       final response = await _dio.delete('/templates/$templateId/');
       
-      if (response.data['success'] == true) {
-        print('✅ Template deleted');
-      } else {
+      if (response.data['success'] != true) {
         throw Exception(response.data['message'] ?? 'Failed to delete');
       }
     } on DioException catch (e) {
@@ -277,26 +254,40 @@ class FormBuilderAPIService {
 
   // ==================== FORM SUBMISSION OPERATIONS ====================
 
-  /// Submit form data
   Future<String> submitForm(
       String templateId, Map<String, dynamic> formData) async {
     try {
       print('📤 Submitting form: $templateId');
+      
+      // FIX: Clean and convert rich text fields to strings
+      print('🧹 Cleaning form data...');
+      final cleanedFormData = _cleanFormData(formData);
+      
+      // Debug print cleaned data
+      print('📋 Form data after cleaning:');
+      cleanedFormData.forEach((key, value) {
+        print('  ✅ $key: ${value.runtimeType} = ${value is String && value.length > 50 ? "${value.substring(0, 50)}..." : value}');
+      });
+      
+      final requestBody = {
+        'formData': cleanedFormData,
+        'templateId': templateId,
+        'metadata': {
+          'submittedAt': DateTime.now().toIso8601String(),
+          'platform': 'Flutter Mobile',
+          'userAgent': 'Flutter/Mobile',
+          'submission_method': 'flutter_mobile'
+        },
+      };
+      
       final response = await _dio.post(
         '/submit/$templateId/',
-        data: {
-          'formData': formData,
-          'metadata': {
-            'submittedAt': DateTime.now().toIso8601String(),
-            'platform': 'Flutter Web',
-            'userAgent': 'Flutter/Web',
-          },
-        },
+        data: requestBody,
       );
 
       if (response.data['success'] == true) {
-        final submissionId = response.data['data']['submission_id'] as String;
-        print('✅ Submitted: $submissionId');
+        final submissionId = response.data['data']['id'] as String;
+        print('✅ Form submitted successfully: $submissionId');
         return submissionId;
       } else {
         throw Exception(response.data['message'] ?? 'Failed to submit');
@@ -305,11 +296,88 @@ class FormBuilderAPIService {
       if (e.type == DioExceptionType.cancel) {
         throw Exception('Not authenticated');
       }
+      
+      if (e.response?.data != null && e.response?.data is Map) {
+        final responseData = e.response!.data as Map<String, dynamic>;
+        final message = responseData['message'] ?? e.message;
+        print('❌ Submission error: $message');
+        throw Exception(message);
+      }
+      
+      print('❌ DioException: ${e.message}');
       throw Exception('Submit failed: ${e.message}');
+    } catch (e) {
+      print('❌ Unexpected error during submission: $e');
+      rethrow;
     }
   }
 
-  /// Get form submissions with filters
+  /// Helper method to clean form data and convert rich text fields to strings
+  Map<String, dynamic> _cleanFormData(Map<String, dynamic> formData) {
+    final cleaned = <String, dynamic>{};
+    
+    formData.forEach((key, value) {
+      if (value == null) {
+        cleaned[key] = '';  // Convert null to empty string
+        print('  🧹 Cleaned null value for field: $key');
+      } else if (value is String) {
+        cleaned[key] = value;  // Keep strings as is
+      } else if (value is bool) {
+        cleaned[key] = value;  // Keep booleans as is
+      } else if (value is num) {
+        cleaned[key] = value;  // Keep numbers as is
+      } else if (value is List) {
+        // Clean list items
+        cleaned[key] = value.map((item) {
+          if (item == null) {
+            return '';
+          } else if (item is Map<String, dynamic>) {
+            return _cleanFormData(item);
+          }
+          return item;
+        }).toList();
+      } else if (value is Map<String, dynamic>) {
+        final map = value as Map<String, dynamic>;
+        
+        // SPECIAL FIX: Detect rich text fields and convert to plain string
+        // Rich text fields have inline field IDs as keys (field_xxxxx) 
+        final hasInlineFields = map.keys.any((k) => k.toString().startsWith('field_'));
+        final hasContent = map.containsKey('content');
+        
+        if (hasInlineFields && !hasContent) {
+          // This is a rich text field with inline data (OLD FORMAT - shouldn't happen anymore)
+          // Build HTML from inline fields as fallback
+          print('  🔧 FIXING rich text field "$key": building HTML from inline data (OLD FORMAT)');
+          
+          final buffer = StringBuffer('<p>');
+          var hasValues = false;
+          map.forEach((fieldId, fieldValue) {
+            if (fieldId.toString().startsWith('field_') && fieldValue != null && fieldValue.toString().isNotEmpty) {
+              buffer.write('$fieldValue ');
+              hasValues = true;
+            }
+          });
+          buffer.write('</p>');
+          
+          cleaned[key] = hasValues ? buffer.toString() : '<p></p>';
+          print('     📏 Generated HTML: ${cleaned[key]}');
+        } else if (hasContent) {
+          // Rich text with content - extract just the content string
+          print('  🔧 Extracting content string from rich text field "$key"');
+          cleaned[key] = map['content'] ?? '<p></p>';  // Extract content property as string
+        } else {
+          // Recursively clean nested maps (for other complex fields)
+          cleaned[key] = _cleanFormData(map);
+        }
+      } else {
+        // Convert everything else to string
+        cleaned[key] = value.toString();
+      }
+    });
+    
+    return cleaned;
+  }
+
   Future<List<FormSubmission>> getSubmissions(
     String templateId, {
     Map<String, dynamic>? filters,
@@ -338,29 +406,52 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Get single submission
+  /// Get single submission - FIXED to use new detail endpoint
   Future<FormSubmission> getSubmission(String submissionId) async {
     try {
       print('📄 Fetching submission: $submissionId');
-      final response = await _dio.get('/submission/$submissionId/');
-
-      if (response.data['success'] == true) {
-        print('✅ Submission loaded');
+      
+      // Use the new submission detail endpoint
+      final endpoint = '/submissions/detail/$submissionId/';
+      print('🔄 Using endpoint: $endpoint');
+      
+      final response = await _dio.get(endpoint);
+      
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        print('✅ Submission loaded successfully');
         return FormSubmission.fromJson(response.data['data']);
       } else {
-        throw Exception(response.data['message'] ?? 'Failed to load');
+        throw Exception(response.data['message'] ?? 'Failed to load submission');
       }
+      
     } on DioException catch (e) {
+      print('❌ DioException: ${e.type}');
+      print('❌ Status: ${e.response?.statusCode}');
+      print('❌ Data: ${e.response?.data}');
+      
       if (e.type == DioExceptionType.cancel) {
         throw Exception('Not authenticated');
       }
+      
+      if (e.response?.statusCode == 404) {
+        throw Exception(
+          'Submission not found (404). The submission ID "$submissionId" does not exist.'
+        );
+      }
+      
+      if (e.response?.statusCode == 403) {
+        throw Exception('Access denied. You do not have permission to view this submission.');
+      }
+      
       throw Exception('Load failed: ${e.message}');
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      rethrow;
     }
   }
 
   // ==================== FILE UPLOAD OPERATIONS ====================
 
-  /// Upload file for form field
   Future<FileMetadata> uploadFile(File file, String fieldId) async {
     try {
       print('📎 Uploading file: ${file.path}');
@@ -373,7 +464,6 @@ class FormBuilderAPIService {
       final response = await _dio.post('/upload-file/', data: formData);
 
       if (response.data['success'] == true) {
-        print('✅ File uploaded');
         return FileMetadata.fromJson(response.data['data']);
       } else {
         throw Exception(response.data['message'] ?? 'Upload failed');
@@ -388,14 +478,12 @@ class FormBuilderAPIService {
 
   // ==================== UTILITY METHODS ====================
 
-  /// Build query string from parameters
   String _buildQueryString(Map<String, dynamic> params) {
     return params.entries
         .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
         .join('&');
   }
 
-  /// Test API connection
   Future<bool> testConnection() async {
     try {
       print('🔌 Testing API connection...');
@@ -409,12 +497,10 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Generate public form URL
   String generatePublicFormUrl(String templateId) {
     return 'http://127.0.0.1:5173/public/form/$templateId';
   }
 
-  /// Get API statistics
   Future<Map<String, dynamic>> getApiStats() async {
     try {
       final authData = await _authService.getCurrentUser();

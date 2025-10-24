@@ -115,16 +115,13 @@ class _FormBuilderContent extends StatelessWidget {
   }
 
   Widget _buildPreviewMode(BuildContext context, FormBuilderProvider provider) {
-    // Use the new functional preview screen
+    // Use the new functional preview screen with backend submission
     return FormPreviewScreen(
       fields: provider.fields,
       formTitle: provider.formTitle,
       formDescription: provider.formDescription,
       headerConfig: provider.headerConfig,
-      onSubmit: (formData) {
-        // Handle form submission
-        debugPrint('Form submitted in preview: $formData');
-      },
+      templateId: provider.currentTemplate?.id, // ✅ Pass template ID for backend submission
     );
   }
 
@@ -278,35 +275,6 @@ class _FormBuilderContent extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
-
-          // Form Info
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Form Statistics',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue[900],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text('Fields: ${provider.fields.length}'),
-                if (provider.currentTemplate != null) ...[
-                  Text('Views: ${provider.currentTemplate!.viewCount}'),
-                  Text('Submissions: ${provider.currentTemplate!.submissionCount}'),
-                ],
-              ],
-            ),
-          ),
         ],
       ),
     );

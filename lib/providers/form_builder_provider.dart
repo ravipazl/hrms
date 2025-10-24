@@ -176,15 +176,26 @@ class FormBuilderProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update form title
+  /// Update form title (optimized - no immediate notify for typing)
   void updateFormTitle(String title) {
-    _formTitle = title;
-    notifyListeners();
+    if (_formTitle != title) {
+      _formTitle = title;
+      // Don't call notifyListeners() here - let the widget handle it
+      // notifyListeners() will be called when focus is lost or save is triggered
+    }
   }
 
-  /// Update form description
+  /// Update form description (optimized - no immediate notify for typing)
   void updateFormDescription(String description) {
-    _formDescription = description;
+    if (_formDescription != description) {
+      _formDescription = description;
+      // Don't call notifyListeners() here - let the widget handle it
+      // notifyListeners() will be called when focus is lost or save is triggered
+    }
+  }
+
+  /// Force notify listeners (for when form title/description editing is complete)
+  void notifyFormMetadataChanged() {
     notifyListeners();
   }
 

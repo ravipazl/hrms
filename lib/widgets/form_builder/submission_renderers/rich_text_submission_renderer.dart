@@ -74,10 +74,10 @@ class RichTextSubmissionRenderer extends StatelessWidget {
     final embeddedFields = richTextData['embeddedFields'] as List? ?? [];
     final inlineData = richTextData['inlineData'] as Map? ?? {};
     
-    debugPrint('🎨 Content length: ${content.length}');
-    debugPrint('🎨 TextContent length: ${textContent.length}');
-    debugPrint('🎨 HTML length: ${html.length}');
-    debugPrint('🎨 Inline fields: ${inlineFields.length}');
+    print('🎨 Content length: ${content.length}');
+    print('🎨 TextContent length: ${textContent.length}');
+   print('🎨 HTML length: ${html.length}');
+    print('🎨 Inline fields: ${inlineFields.length}');
     
     // Determine which content to display (priority: content > html > textContent)
     String displayContent = content.isNotEmpty 

@@ -259,23 +259,14 @@ class FormBuilderAPIService {
     try {
       print('📤 Submitting form: $templateId');
       
-      // FIX: Clean null values BEFORE sending to backend
+      // FIX: Clean and convert rich text fields to strings
       print('🧹 Cleaning form data...');
       final cleanedFormData = _cleanFormData(formData);
       
       // Debug print cleaned data
       print('📋 Form data after cleaning:');
       cleanedFormData.forEach((key, value) {
-        if (value == null) {
-          print('  ❌ $key: still NULL (this should not happen!)');
-        } else if (value is String && value.isEmpty) {
-          print('  ✅ $key: "" (empty string - OK)');
-        } else {
-          final preview = value is String && value.length > 50 
-              ? "${value.substring(0, 50)}..." 
-              : value.toString();
-          print('  ✅ $key: ${value.runtimeType} = $preview');
-        }
+        print('  ✅ $key: ${value.runtimeType} = ${value is String && value.length > 50 ? "${value.substring(0, 50)}..." : value}');
       });
       
       final requestBody = {
@@ -321,7 +312,7 @@ class FormBuilderAPIService {
     }
   }
 
-  /// Helper method to clean form data by converting null values to empty strings
+  /// Helper method to clean form data and convert rich text fields to strings
   Map<String, dynamic> _cleanFormData(Map<String, dynamic> formData) {
     final cleaned = <String, dynamic>{};
     
@@ -346,8 +337,38 @@ class FormBuilderAPIService {
           return item;
         }).toList();
       } else if (value is Map<String, dynamic>) {
-        // Recursively clean nested maps (for rich text, complex fields)
-        cleaned[key] = _cleanFormData(value);
+        final map = value as Map<String, dynamic>;
+        
+        // SPECIAL FIX: Detect rich text fields and convert to plain string
+        // Rich text fields have inline field IDs as keys (field_xxxxx) 
+        final hasInlineFields = map.keys.any((k) => k.toString().startsWith('field_'));
+        final hasContent = map.containsKey('content');
+        
+        if (hasInlineFields && !hasContent) {
+          // This is a rich text field with inline data (OLD FORMAT - shouldn't happen anymore)
+          // Build HTML from inline fields as fallback
+          print('  🔧 FIXING rich text field "$key": building HTML from inline data (OLD FORMAT)');
+          
+          final buffer = StringBuffer('<p>');
+          var hasValues = false;
+          map.forEach((fieldId, fieldValue) {
+            if (fieldId.toString().startsWith('field_') && fieldValue != null && fieldValue.toString().isNotEmpty) {
+              buffer.write('$fieldValue ');
+              hasValues = true;
+            }
+          });
+          buffer.write('</p>');
+          
+          cleaned[key] = hasValues ? buffer.toString() : '<p></p>';
+          print('     📏 Generated HTML: ${cleaned[key]}');
+        } else if (hasContent) {
+          // Rich text with content - extract just the content string
+          print('  🔧 Extracting content string from rich text field "$key"');
+          cleaned[key] = map['content'] ?? '<p></p>';  // Extract content property as string
+        } else {
+          // Recursively clean nested maps (for other complex fields)
+          cleaned[key] = _cleanFormData(map);
+        }
       } else {
         // Convert everything else to string
         cleaned[key] = value.toString();

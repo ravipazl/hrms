@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../../models/form_builder/form_field.dart' as form_models;
 
@@ -86,12 +88,12 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
                     points.add(details.localPosition);
                   });
                 },
-                onPanEnd: (details) {
+                onPanEnd: (details) async {
                   setState(() {
                     points.add(null);
                   });
-                  // Save signature data
-                  widget.onChanged('signature_${DateTime.now().millisecondsSinceEpoch}');
+                  // Convert signature to base64 image
+                  await _saveSignatureAsBase64();
                 },
                 child: CustomPaint(
                   painter: SignaturePainter(
@@ -149,6 +151,52 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
       isSigned = false;
     });
     widget.onChanged('');
+  }
+
+  Future<void> _saveSignatureAsBase64() async {
+    try {
+      // Create a PictureRecorder to capture the signature
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      
+      // Set background color
+      final backgroundColor = widget.field.props['backgroundColor'] as String? ?? '#ffffff';
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, 400, 200),
+        Paint()..color = _hexToColor(backgroundColor),
+      );
+      
+      // Draw the signature
+      final penColor = widget.field.props['penColor'] as String? ?? '#000000';
+      final paint = Paint()
+        ..color = _hexToColor(penColor)
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+
+      for (int i = 0; i < points.length - 1; i++) {
+        if (points[i] != null && points[i + 1] != null) {
+          canvas.drawLine(points[i]!, points[i + 1]!, paint);
+        }
+      }
+      
+      // Convert to image
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(400, 200);
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        // Convert to base64
+        final bytes = byteData.buffer.asUint8List();
+        final base64String = base64Encode(bytes);
+        final dataUrl = 'data:image/png;base64,$base64String';
+        
+        // Send to form
+        widget.onChanged(dataUrl);
+        debugPrint('✅ Signature converted to base64 (${bytes.length} bytes)');
+      }
+    } catch (e) {
+      debugPrint('❌ Error converting signature: $e');
+    }
   }
 
   Color _hexToColor(String hex) {

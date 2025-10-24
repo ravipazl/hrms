@@ -6,7 +6,10 @@ import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/error_widget.dart' as custom_error;
 import '../../widgets/common/empty_state_widget.dart';
 import '../../widgets/common/confirmation_dialog.dart';
+import '../../services/form_builder_api_service.dart';
+import '../../services/auth_service.dart';
 import 'form_builder_screen.dart';
+import 'submission_list_screen.dart';
 
 /// Form List Screen - Browse and manage form templates
 class FormListScreen extends StatefulWidget {
@@ -19,10 +22,12 @@ class FormListScreen extends StatefulWidget {
 class _FormListScreenState extends State<FormListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _sortBy = 'date';
+  late FormBuilderAPIService _apiService;
 
   @override
   void initState() {
     super.initState();
+    _apiService = FormBuilderAPIService(AuthService());
     // Load templates on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<TemplateListProvider>(context, listen: false).loadTemplates();
@@ -229,6 +234,8 @@ class _FormListScreenState extends State<FormListScreen> {
             onEdit: () => _editTemplate(context, template.id),
             onDelete: () => _deleteTemplate(context, provider, template),
             onView: () => _viewTemplate(context, template.id),
+            onViewSubmissions: () => _viewSubmissions(context, template),
+            apiService: _apiService,
           );
         },
       ),
@@ -251,6 +258,18 @@ class _FormListScreenState extends State<FormListScreen> {
 
   void _viewTemplate(BuildContext context, String templateId) {
     Navigator.pushNamed(context, '/form-builder/view?id=$templateId');
+  }
+
+  void _viewSubmissions(BuildContext context, FormTemplate template) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubmissionListScreen(
+          templateId: template.id,
+          apiService: _apiService,
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteTemplate(
@@ -294,12 +313,16 @@ class _TemplateCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onView;
+  final VoidCallback onViewSubmissions;
+  final FormBuilderAPIService apiService;
 
   const _TemplateCard({
     required this.template,
     required this.onEdit,
     required this.onDelete,
     required this.onView,
+    required this.onViewSubmissions,
+    required this.apiService,
   });
 
   @override
@@ -353,6 +376,20 @@ class _TemplateCard extends StatelessWidget {
                               ],
                             ),
                           ),
+                          PopupMenuItem(
+                            value: 'submissions',
+                            child: Row(
+                              children: [
+                                Badge(
+                                  label: Text('${template.submissionCount}'),
+                                  isLabelVisible: template.submissionCount > 0,
+                                  child: const Icon(Icons.list_alt, size: 18),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('View Submissions (${template.submissionCount})'),
+                              ],
+                            ),
+                          ),
                           const PopupMenuItem(
                             value: 'duplicate',
                             child: Row(
@@ -384,6 +421,9 @@ class _TemplateCard extends StatelessWidget {
                           break;
                         case 'view':
                           onView();
+                          break;
+                        case 'submissions':
+                          onViewSubmissions();
                           break;
                         case 'duplicate':
                           // TODO: Implement duplicate
@@ -423,6 +463,7 @@ class _TemplateCard extends StatelessWidget {
                   _buildStat(
                     Icons.assignment_turned_in,
                     '${template.submissionCount}',
+                    color: template.submissionCount > 0 ? Colors.green : null,
                   ),
                 ],
               ),
@@ -479,12 +520,19 @@ class _TemplateCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStat(IconData icon, String label) {
+  Widget _buildStat(IconData icon, String label, {Color? color}) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey[600]),
+        Icon(icon, size: 14, color: color ?? Colors.grey[600]),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: color ?? Colors.grey[700],
+            fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ],
     );
   }

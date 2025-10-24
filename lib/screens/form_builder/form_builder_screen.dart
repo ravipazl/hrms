@@ -115,16 +115,13 @@ class _FormBuilderContent extends StatelessWidget {
   }
 
   Widget _buildPreviewMode(BuildContext context, FormBuilderProvider provider) {
-    // Use the new functional preview screen
+    // Use the new functional preview screen with backend submission
     return FormPreviewScreen(
       fields: provider.fields,
       formTitle: provider.formTitle,
       formDescription: provider.formDescription,
       headerConfig: provider.headerConfig,
-      onSubmit: (formData) {
-        // Handle form submission
-        debugPrint('Form submitted in preview: $formData');
-      },
+      templateId: provider.currentTemplate?.id, // ✅ Pass template ID for backend submission
     );
   }
 

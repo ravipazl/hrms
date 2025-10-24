@@ -44,6 +44,9 @@ dependencies:
   # Rich Text Editor - Latest stable version
   flutter_quill: ^11.4.2
   equatable: ^2.0.5
+  
+  # HTML rendering for rich text display
+  flutter_html: ^3.0.0-beta.2
  
 dev_dependencies:
   flutter_test:

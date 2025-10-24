@@ -109,13 +109,20 @@ class PreviewDateField extends StatelessWidget {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: value is DateTime ? value : DateTime.now(),
+      initialDate: value is DateTime 
+          ? value 
+          : (value is String && value.isNotEmpty)
+              ? DateTime.tryParse(value) ?? DateTime.now()
+              : DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
     );
 
     if (picked != null) {
-      onChanged(picked.toIso8601String());
+      // ✅ Format date as YYYY-MM-DD for backend compatibility
+      final formattedDate = DateFormat('yyyy-MM-dd').format(picked);
+      debugPrint('📅 Date selected: $formattedDate');
+      onChanged(formattedDate);
     }
   }
 }

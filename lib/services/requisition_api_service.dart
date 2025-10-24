@@ -203,47 +203,11 @@ class RequisitionApiService {
       return requisition;
     } catch (error) {
       print('❌ Error fetching detailed requisition $id: $error');
-      
-      // For development, provide a basic requisition object
-      print('🛠️ Creating fallback requisition for development');
-      return _createFallbackRequisition(id);
+      print('⚠️ API unavailable - throwing error');
+      throw Exception('Failed to fetch requisition: $error');
     }
   }
-  
-  /// Create a fallback requisition for development
-  Requisition _createFallbackRequisition(int id) {
-    print('🛠️ Creating fallback requisition with ID: $id');
-    
-    return Requisition(
-      id: id,
-      requisitionId: 'DEV-REQ-$id',
-      jobPosition: 'Sample Job Position $id',
-      department: '1',
-      qualification: 'Bachelor\'s Degree in Computer Science',
-      experience: '2-3 years of relevant experience',
-      essentialSkills: 'Communication, Problem Solving, Technical Skills',
-      desiredSkills: 'Leadership, Project Management',
-      jobDescription: 'Sample job description for requisition $id',
-      justificationText: 'Sample justification for this position',
-      positions: [
-        RequisitionPosition(
-          id: 1,
-          typeRequisition: '1',
-          requisitionQuantity: 1,
-          vacancyToBeFilled: DateTime.now().add(Duration(days: 30)).toIso8601String().split('T')[0],
-          employmentType: '1',
-          justificationText: 'Sample position justification',
-        ),
-      ],
-      skills: [
-        RequisitionSkill(id: 1, skill: 'Communication', skillType: 'essential'),
-        RequisitionSkill(id: 2, skill: 'Problem Solving', skillType: 'essential'),
-        RequisitionSkill(id: 3, skill: 'Leadership', skillType: 'desired'),
-      ],
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  }
+
 
   /// Create new requisition with multiple files support
   Future<Requisition> createRequisition(
@@ -560,61 +524,11 @@ class RequisitionApiService {
       }
     } catch (error) {
       print('❌ Error fetching reference data: $error');
-      
-      // For development, provide hardcoded reference data based on Django models
-      print('🛠️ Providing fallback reference data for development');
-      return _getFallbackReferenceData(referenceTypeId);
+      print('⚠️ API unavailable - returning empty list');
+      return [];
     }
   }
-  
-  /// Provide fallback reference data based on Django model structure
-  List<ReferenceData> _getFallbackReferenceData(int referenceTypeId) {
-    switch (referenceTypeId) {
-      case 1: // ReferenceType: Type of Requisition
-        return [
-          ReferenceData(id: 1, referenceValue: 'New Hire'),
-          ReferenceData(id: 2, referenceValue: 'Replacement'),
-        ];
-      case 2: // ReferenceType: Requirements for New Hire
-        return [
-          ReferenceData(id: 1, referenceValue: 'Business Expansion'),
-          ReferenceData(id: 2, referenceValue: 'Increased Workload'),
-          ReferenceData(id: 3, referenceValue: 'New Project'),
-          ReferenceData(id: 4, referenceValue: 'Skill Gap'),
-        ];
-      case 3: // ReferenceType: Requirements for Replacement
-        return [
-          ReferenceData(id: 1, referenceValue: 'Resignation'),
-          ReferenceData(id: 2, referenceValue: 'Termination'),
-          ReferenceData(id: 3, referenceValue: 'Retirement'),
-          ReferenceData(id: 4, referenceValue: 'Transfer'),
-        ];
-      case 4: // ReferenceType: Employment Type
-        return [
-          ReferenceData(id: 1, referenceValue: 'Full-time'),
-          ReferenceData(id: 2, referenceValue: 'Part-time'),
-          ReferenceData(id: 3, referenceValue: 'Contract'),
-          ReferenceData(id: 4, referenceValue: 'Temporary'),
-        ];
-      case 5: // ReferenceType: Gender
-        return [
-          ReferenceData(id: 1, referenceValue: 'Male'),
-          ReferenceData(id: 2, referenceValue: 'Female'),
-          ReferenceData(id: 3, referenceValue: 'Any'),
-        ];
-      case 9: // ReferenceType: Department
-        return [
-          ReferenceData(id: 1, referenceValue: 'Software Development'),
-          ReferenceData(id: 2, referenceValue: 'UI/UX Design'),
-          ReferenceData(id: 3, referenceValue: 'Quality Assurance'),
-          ReferenceData(id: 4, referenceValue: 'Human Resources'),
-          ReferenceData(id: 5, referenceValue: 'Medical Services'),
-          ReferenceData(id: 6, referenceValue: 'Administration'),
-        ];
-      default:
-        return [];
-    }
-  }
+
 
   /// Map frontend form data to backend API format compatible with Django
   Map<String, dynamic> _mapFormDataToBackend(Requisition requisition) {
@@ -657,12 +571,8 @@ class RequisitionApiService {
     final positionsArray = requisition.positions
         .map((position) => {
           'type_requisition': position.typeRequisition,
-          'requirements_requisition_newhire': position.typeRequisition == '1' 
-              ? (position.requirementsRequisitionNewhire ?? '')
-              : '',
-          'requirements_requisition_replacement': position.typeRequisition == '2' 
-              ? (position.requirementsRequisitionReplacement ?? '')
-              : '',
+          'requirements_requisition_newhire': position.requirementsRequisitionNewhire ?? '',
+          'requirements_requisition_replacement': position.requirementsRequisitionReplacement ?? '',
           'requisition_quantity': position.requisitionQuantity.toString(),
           'vacancy_to_be_filled_on': position.vacancyToBeFilled,
           'employment_type': position.employmentType ?? '',
@@ -757,14 +667,8 @@ class RequisitionApiService {
         errors.add('$prefix Quantity must be greater than 0');
       }
       
-      if (position.typeRequisition == '2') { // Replacement
-        if (position.employeeName?.trim().isEmpty != false) {
-          errors.add('$prefix Employee name is required for replacement');
-        }
-        if (position.employeeNo?.trim().isEmpty != false) {
-          errors.add('$prefix Employee number is required for replacement');
-        }
-      }
+      // Skip replacement validation - backend will handle it based on typeRequisition
+      // The validation is now done on the backend based on the actual type value
     }
 
     return errors;

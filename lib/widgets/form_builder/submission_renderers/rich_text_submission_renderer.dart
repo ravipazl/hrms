@@ -66,28 +66,58 @@ class RichTextSubmissionRenderer extends StatelessWidget {
     debugPrint('🎨 Building from Map');
     debugPrint('🎨 Map keys: ${richTextData.keys.toList()}');
     
-    // Extract all possible content fields
-    final content = richTextData['content'] as String? ?? '';
-    final textContent = richTextData['textContent'] as String? ?? '';
-    final html = richTextData['html'] as String? ?? '';
-    final inlineFields = richTextData['inlineFields'] as List? ?? [];
+    // Extract structured content (NEW FORMAT)
+    final content = richTextData['content'];  // Slate.js structure (list of nodes)
     final embeddedFields = richTextData['embeddedFields'] as List? ?? [];
-    final inlineData = richTextData['inlineData'] as Map? ?? {};
+    final embeddedFieldValues = richTextData['embeddedFieldValues'] as Map? ?? {};
     
-    print('🎨 Content length: ${content.length}');
-    print('🎨 TextContent length: ${textContent.length}');
-   print('🎨 HTML length: ${html.length}');
-    print('🎨 Inline fields: ${inlineFields.length}');
+    // Legacy fields (backward compatibility)
+    final html = richTextData['html'] as String? ?? '';
+    final textContent = richTextData['textContent'] as String? ?? '';
     
-    // Determine which content to display (priority: content > html > textContent)
-    String displayContent = content.isNotEmpty 
-        ? content 
-        : (html.isNotEmpty ? html : textContent);
+    debugPrint('🎨 Content type: ${content.runtimeType}');
+    debugPrint('🎨 Embedded fields: ${embeddedFields.length}');
+    debugPrint('🎨 Embedded values: ${embeddedFieldValues.length}');
+    debugPrint('🎨 HTML length: ${html.length}');
     
-    debugPrint('🎨 Display content length: ${displayContent.length}');
+    // Check if we have structured content
+    if (content is List && content.isNotEmpty) {
+      // Check if we have embedded values OR just display content
+      if (embeddedFieldValues.isNotEmpty) {
+        // NEW: Render structured Slate.js content with embedded values
+        debugPrint('🎨 ✅ Rendering structured content WITH embedded values');
+        return _buildStructuredContent(content, embeddedFields, embeddedFieldValues, context);
+      } else if (html.isNotEmpty) {
+        // OLD SUBMISSION: Has HTML with merged values, use HTML instead of template
+        debugPrint('🎨 🔙 Old submission: Rendering HTML (has merged embedded values)');
+        return _buildFromHtmlOnly(html, context);
+      } else {
+        // Just display the structured content without values
+        debugPrint('🎨 ✅ Rendering structured content WITHOUT embedded values');
+        return _buildStructuredContent(content, embeddedFields, embeddedFieldValues, context);
+      }
+    }
     
-    if (displayContent.isEmpty && inlineFields.isEmpty && embeddedFields.isEmpty) {
-      debugPrint('🎨 ⚠️ All content is empty!');
+    // Fallback: Render HTML if available
+    if (html.isNotEmpty || textContent.isNotEmpty) {
+      debugPrint('🎨 🔙 Rendering HTML fallback');
+      String displayContent = html.isNotEmpty ? html : textContent;
+      
+      if (displayContent.isEmpty) {
+        return _buildEmptyState();
+      }
+
+      return _buildFromHtmlOnly(displayContent, context);
+    }
+    
+    // If no content at all, show empty state
+    return _buildEmptyState();
+  }
+  
+  Widget _buildFromHtmlOnly(String htmlContent, BuildContext context) {
+    debugPrint('🎨 Building from HTML only, length: ${htmlContent.length}');
+    
+    if (htmlContent.trim().isEmpty) {
       return _buildEmptyState();
     }
 
@@ -99,40 +129,7 @@ class RichTextSubmissionRenderer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade300),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Main HTML content
-          if (displayContent.isNotEmpty) ...[
-            _buildHtmlContent(displayContent, context),
-          ],
-          
-          // Inline data section (filled values from inline fields)
-          if (inlineData.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Inline Field Responses',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...(inlineData as Map<String, dynamic>).entries.map((entry) => 
-              _buildInlineDataField(entry.key, entry.value)
-            ),
-          ],
-        ],
-      ),
+      child: _buildHtmlContent(htmlContent, context),
     );
   }
 
@@ -222,15 +219,199 @@ class RichTextSubmissionRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildInlineDataField(String fieldId, dynamic fieldData) {
-    if (fieldData is! Map) {
-      return const SizedBox.shrink();
+  Widget _buildStructuredContent(
+    List<dynamic> content,
+    List<dynamic> embeddedFields,
+    Map<dynamic, dynamic> embeddedValues,
+    BuildContext context,
+  ) {
+    debugPrint('🎨 Building structured content with ${content.length} nodes');
+    debugPrint('🎨 Embedded fields: ${embeddedFields.length}');
+    debugPrint('🎨 Embedded values: $embeddedValues');
+    
+    // Create label lookup map: field ID -> field label
+    final fieldLabels = <String, String>{};
+    for (var field in embeddedFields) {
+      if (field is Map) {
+        final id = field['id'] as String?;
+        final label = field['label'] as String?;
+        if (id != null && label != null) {
+          fieldLabels[id] = label;
+        }
+      }
+    }
+    debugPrint('🎨 Field labels map: $fieldLabels');
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Render each content node with field labels for placeholder replacement
+          ...content.map((node) => _buildContentNode(node, embeddedValues, fieldLabels, context)),
+          
+          // Show embedded field values if any
+          if (embeddedValues.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Embedded Field Responses',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...embeddedValues.entries.map((entry) {
+              final fieldId = entry.key.toString();
+              final fieldLabel = fieldLabels[fieldId] ?? fieldId;  // Use label or fallback to ID
+              return _buildEmbeddedFieldValue(fieldLabel, entry.value);
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildContentNode(
+    dynamic node,
+    Map<dynamic, dynamic> embeddedValues,
+    Map<String, String> fieldLabels,
+    BuildContext context,
+  ) {
+    if (node is! Map<String, dynamic>) return const SizedBox.shrink();
+    
+    final type = node['type'] as String? ?? 'paragraph';
+    final children = node['children'] as List<dynamic>? ?? [];
+    final align = node['align'] as String?;
+    
+    // Get text alignment
+    TextAlign textAlign = TextAlign.left;
+    if (align == 'center') textAlign = TextAlign.center;
+    if (align == 'right') textAlign = TextAlign.right;
+    if (align == 'justify') textAlign = TextAlign.justify;
+    
+    // Build text with formatting
+    final spans = <InlineSpan>[];
+    for (var child in children) {
+      if (child is Map<String, dynamic> && child.containsKey('text')) {
+        final text = child['text'] as String;
+        
+        // Check if this text contains embedded field placeholder
+        if (text.contains('[') && text.contains(']')) {
+          // Replace [Field Name] with actual value using field labels
+          final replaced = _replaceEmbeddedPlaceholders(text, embeddedValues, fieldLabels);
+          spans.add(TextSpan(
+            text: replaced,
+            style: _getTextStyle(child),
+          ));
+        } else {
+          spans.add(TextSpan(
+            text: text,
+            style: _getTextStyle(child),
+          ));
+        }
+      }
     }
     
-    final data = fieldData as Map<String, dynamic>;
-    final label = data['label'] as String? ?? fieldId;
-    final value = data['value'];
+    // Different styles based on type
+    TextStyle baseStyle = const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87);
+    if (type == 'heading-one' || type == 'h1') {
+      baseStyle = const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
+    } else if (type == 'heading-two' || type == 'h2') {
+      baseStyle = const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
+    } else if (type == 'heading-three' || type == 'h3') {
+      baseStyle = const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
+    }
     
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text.rich(
+        TextSpan(children: spans, style: baseStyle),
+        textAlign: textAlign,
+      ),
+    );
+  }
+  
+  TextStyle _getTextStyle(Map<String, dynamic> formatting) {
+    TextStyle style = const TextStyle();
+    
+    if (formatting['bold'] == true) {
+      style = style.copyWith(fontWeight: FontWeight.bold);
+    }
+    if (formatting['italic'] == true) {
+      style = style.copyWith(fontStyle: FontStyle.italic);
+    }
+    if (formatting['underline'] == true) {
+      style = style.copyWith(decoration: TextDecoration.underline);
+    }
+    if (formatting['code'] == true) {
+      style = style.copyWith(
+        fontFamily: 'monospace',
+        backgroundColor: Colors.grey.shade200,
+      );
+    }
+    
+    return style;
+  }
+  
+  String _replaceEmbeddedPlaceholders(
+    String text, 
+    Map<dynamic, dynamic> values,
+    Map<String, String> fieldLabels,
+  ) {
+    debugPrint('🎨 Replacing placeholders in: $text');
+    debugPrint('🎨 With values: $values');
+    debugPrint('🎨 Using field labels: $fieldLabels');
+    
+    // Pattern to match: emoji + [Label] or just [Label]
+    final pattern = RegExp(r'[📝🔢📧📅📋☑️🔘📄📌]?\s*\[([^\]]+)\]');
+    
+    final replaced = text.replaceAllMapped(pattern, (match) {
+      final placeholder = match.group(0) ?? '';
+      final fieldLabel = match.group(1);
+      
+      debugPrint('🎨 Found placeholder: $placeholder, label: $fieldLabel');
+      
+      // Find the field ID that has this label
+      String? matchingFieldId;
+      for (var entry in fieldLabels.entries) {
+        if (entry.value == fieldLabel) {
+          matchingFieldId = entry.key;
+          break;
+        }
+      }
+      
+      if (matchingFieldId != null && values.containsKey(matchingFieldId)) {
+        final value = values[matchingFieldId];
+        debugPrint('🎨 ✅ Replaced with value: $value');
+        return value?.toString() ?? '';
+      }
+      
+      // If no value found, return empty string (hide placeholder)
+      debugPrint('🎨 ⚠️ No value found, hiding placeholder');
+      return '';
+    });
+    
+    debugPrint('🎨 Result: $replaced');
+    return replaced;
+  }
+  
+  Widget _buildEmbeddedFieldValue(String label, dynamic value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),

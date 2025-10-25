@@ -177,10 +177,24 @@ class PreviewFieldRenderer extends StatelessWidget {
         );
 
       case form_models.FieldType.richText:
+        print('\n🔍🔍🔍 RENDERING RICH TEXT FIELD: ${field.id}');
+        print('   Field props keys: ${field.props.keys.toList()}');
+        print('   Current value type: ${value.runtimeType}');
+        print('   Current value: $value');
+        
         return PreviewRichTextField(
           field: field,
           value: value,
-          onChanged: onChanged,
+          onChanged: (newValue) {
+            print('\n📣📣📣 RICH TEXT onChanged CALLED!');
+            print('   Field ID: ${field.id}');
+            print('   New value type: ${newValue.runtimeType}');
+            print('   New value keys: ${newValue is Map ? (newValue as Map).keys.toList() : "not a map"}');
+            print('   embeddedFieldValues: ${newValue is Map ? newValue["embeddedFieldValues"] : "N/A"}');
+            print('   Calling parent onChanged...');
+            onChanged(newValue);
+            print('   ✅ Parent onChanged completed\n');
+          },
           hasError: error != null && error!.isNotEmpty,
         );
 

@@ -234,12 +234,27 @@ class FormSubmissionHandler {
     return flattened;
   }
 
-  /// Process rich text field data
+  /// Process rich text field data - PRESERVE ALL FIELDS
   Map<String, dynamic> _processRichTextField(Map<String, dynamic> richTextData) {
-    return {
+    debugPrint('   🔍 Processing rich text field:');
+    debugPrint('      Input keys: ${richTextData.keys.toList()}');
+    debugPrint('      Has embeddedFieldValues: ${richTextData.containsKey("embeddedFieldValues")}');
+    if (richTextData.containsKey('embeddedFieldValues')) {
+      debugPrint('      embeddedFieldValues: ${richTextData["embeddedFieldValues"]}');
+    }
+    
+    // ✅ Return complete rich text object with ALL fields
+    final processed = {
       'content': richTextData['content'] ?? '',
+      'embeddedFields': richTextData['embeddedFields'] ?? [],  // ✅ Keep field definitions
+      'embeddedFieldValues': richTextData['embeddedFieldValues'] ?? {},  // ✅ Keep user values!
       'inlineFields': richTextData['inlineFields'] ?? [],
     };
+    
+    debugPrint('      Output keys: ${processed.keys.toList()}');
+    debugPrint('      Output embeddedFieldValues: ${processed["embeddedFieldValues"]}');
+    
+    return processed;
   }
 
   /// Process file field data

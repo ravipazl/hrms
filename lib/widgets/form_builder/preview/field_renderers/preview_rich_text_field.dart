@@ -92,56 +92,37 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
     // Update internal state WITHOUT setState to avoid rebuild/data loss
     _fieldValues[fieldId] = value;
     
+    // DEBUG: Log the change
+    print('🔄 Embedded field changed: $fieldId = $value');
+    print('📋 All embedded values: $_fieldValues');
+    
     // Always send proper rich text object structure to backend
     _notifyParent();
   }
   
   void _notifyParent() {
-    // CRITICAL FIX: Build HTML by merging template content with inline field values
-    print('📤 Rich text building merged HTML...');
+    // CRITICAL: Backend validator expects rich text object with content, embeddedFields, embeddedFieldValues
+    print('📤 Rich text building structured submission data...');
     
-    // Extract template content from field props
+    // Extract template data from field props
     final slateContent = widget.field.props['content'] as List<dynamic>? ?? [];
-    final buffer = StringBuffer('<p>');
+    final embeddedFields = widget.field.props['embeddedFields'] as List<dynamic>? ?? [];
     
-    // Process each slate element to build HTML
-    for (var element in slateContent) {
-      if (element is Map<String, dynamic>) {
-        final children = element['children'] as List<dynamic>? ?? [];
-        
-        for (var child in children) {
-          if (child is Map<String, dynamic> && child.containsKey('text')) {
-            final text = child['text'] as String;
-            
-            // Replace inline field placeholders with actual values
-            final mergedText = _replaceInlineFieldPlaceholders(text);
-            buffer.write(mergedText);
-          }
-        }
-      }
-    }
+    // Build the complete rich text object that backend expects
+    final richTextObject = {
+      'content': slateContent,  // Slate.js structure from template
+      'embeddedFields': embeddedFields,  // Field definitions from template
+      'embeddedFieldValues': Map<String, dynamic>.from(_fieldValues),  // User-entered values
+    };
     
-    buffer.write('</p>');
+    print('📐 Content nodes: ${slateContent.length}');
+    print('📋 Embedded fields: ${embeddedFields.length}');
+    print('📑 Embedded values: $_fieldValues');
+    print('📦 Full rich text object: $richTextObject');
+    print('🚀 Calling onChanged with rich text object');
     
-    // Clean up: remove excessive whitespace, newlines, AND all emojis
-    var mergedHtml = buffer.toString()
-        .replaceAll('\n\n', ' ')  // Replace double newlines with space
-        .replaceAll('\n', ' ')     // Replace single newlines with space
-        .replaceAll(RegExp(r'\s+'), ' ')  // Collapse multiple spaces
-        .replaceAll(RegExp(r'[📝🔢📧📅📋☑️🔘📄📌]'), '')  // Remove all emojis
-        .trim();
-    
-    // Ensure we have at least empty paragraph
-    if (mergedHtml == '<p></p>' || mergedHtml == '<p> </p>') {
-      mergedHtml = '<p></p>';
-    }
-    
-    print('📏 Merged HTML: $mergedHtml');
-    print('📋 Inline values: $_fieldValues');
-    print('📐 HTML length: ${mergedHtml.length} characters');
-    
-    // Send the merged HTML string to parent
-    widget.onChanged(mergedHtml);
+    // Send complete rich text object (backend validator expects this structure)
+    widget.onChanged(richTextObject);
   }
   
   /// Replace placeholders like [Text Input] with actual field values

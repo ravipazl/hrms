@@ -95,7 +95,72 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: content.map((e) => _buildElement(e as Map<String, dynamic>)).toList(),
+      children: _buildContentWithListTracking(content),
+    );
+  }
+
+  /// Build content while tracking list indices for numbered lists
+  List<Widget> _buildContentWithListTracking(List<dynamic> content) {
+    final widgets = <Widget>[];
+    int orderedListIndex = 0;
+    String? lastListType;
+
+    for (var element in content) {
+      if (element is! Map<String, dynamic>) continue;
+
+      final type = element['type'] as String?;
+
+      // Track list indices
+      if (type == 'numbered-list' || type == 'ordered-list') {
+        if (lastListType != 'ordered') {
+          orderedListIndex = 1; // Reset for new list
+        } else {
+          orderedListIndex++;
+        }
+        lastListType = 'ordered';
+        widgets.add(_buildListElement(element, orderedListIndex));
+      } else if (type == 'bulleted-list' || type == 'unordered-list') {
+        lastListType = 'unordered';
+        widgets.add(_buildListElement(element, null));
+      } else {
+        lastListType = null;
+        orderedListIndex = 0;
+        widgets.add(_buildElement(element));
+      }
+    }
+
+    return widgets;
+  }
+
+  /// Build list item (bullet or numbered)
+  Widget _buildListElement(Map<String, dynamic> element, int? number) {
+    final children = element['children'] as List<dynamic>? ?? [];
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4, left: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Bullet or number
+          SizedBox(
+            width: 24,
+            child: Text(
+              number != null ? '$number.' : '•',
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          // Content
+          Expanded(
+            child: _buildStyledContent(children, element['type'] as String?),
+          ),
+        ],
+      ),
     );
   }
 
@@ -103,36 +168,81 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
     final type = element['type'] as String?;
     final children = element['children'] as List<dynamic>? ?? [];
 
-    String text = '';
-    Map<String, dynamic> styling = {};
-    
-    for (var child in children) {
-      if (child is Map<String, dynamic> && child.containsKey('text')) {
-        text = child['text'] as String;
-        styling = child;
-        break;
-      }
-    }
+    if (children.isEmpty) return const SizedBox.shrink();
 
-    if (text.isEmpty) return const SizedBox.shrink();
-
-    final style = _getStyle(type, styling);
+    // Get alignment from element
+    final alignment = _getAlignment(element);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: _buildInlineContent(text, style),
+      child: Align(
+        alignment: alignment,
+        child: _buildStyledContent(children, type),
+      ),
     );
   }
 
-  /// Build content with ALL fields using RichText for proper inline layout
-  Widget _buildInlineContent(String text, TextStyle style) {
-    final pattern = RegExp(r'\[(.*?)\]');
-    final matches = pattern.allMatches(text);
+  /// Get text alignment from element properties
+  Alignment _getAlignment(Map<String, dynamic> element) {
+    final align = element['align'] as String?;
+    switch (align) {
+      case 'left':
+        return Alignment.centerLeft;
+      case 'center':
+        return Alignment.center;
+      case 'right':
+        return Alignment.centerRight;
+      case 'justify':
+        return Alignment.centerLeft;
+      default:
+        return Alignment.centerLeft;
+    }
+  }
 
-    if (matches.isEmpty) {
-      return Text(text, style: style);
+  /// Build content with proper styling from children
+  Widget _buildStyledContent(List<dynamic> children, String? elementType) {
+    final spans = <InlineSpan>[];
+
+    for (var child in children) {
+      if (child is! Map<String, dynamic>) continue;
+
+      final text = child['text'] as String? ?? '';
+      if (text.isEmpty) continue;
+
+      // Get base style from element type
+      final baseStyle = _getBaseStyle(elementType);
+      
+      // Apply inline styling (bold, italic, underline)
+      final style = _applyInlineStyling(baseStyle, child);
+
+      // Check if text contains embedded fields
+      final pattern = RegExp(r'\[(.*?)\]');
+      final matches = pattern.allMatches(text);
+
+      if (matches.isEmpty) {
+        // No fields, just add styled text
+        spans.add(TextSpan(text: text, style: style));
+      } else {
+        // Has fields, process them
+        spans.addAll(_processTextWithFields(text, style, matches));
+      }
     }
 
+    if (spans.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+    );
+  }
+
+  /// Process text that contains embedded fields
+  List<InlineSpan> _processTextWithFields(
+    String text,
+    TextStyle style,
+    Iterable<RegExpMatch> matches,
+  ) {
     final spans = <InlineSpan>[];
     int lastIndex = 0;
 
@@ -176,10 +286,172 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
       ));
     }
 
-    return RichText(
-      text: TextSpan(children: spans),
-    );
+    return spans;
   }
+
+  /// Get base text style from element type (h1, h2, paragraph, etc.)
+  TextStyle _getBaseStyle(String? type) {
+    switch (type) {
+      case 'heading-one':
+      case 'h1':
+        return const TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+          color: Colors.black87,
+        );
+      case 'heading-two':
+      case 'h2':
+        return const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          height: 1.3,
+          color: Colors.black87,
+        );
+      case 'heading-three':
+      case 'h3':
+        return const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+          color: Colors.black87,
+        );
+      case 'heading-four':
+      case 'h4':
+        return const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+          color: Colors.black87,
+        );
+      case 'heading-five':
+      case 'h5':
+        return const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+          color: Colors.black87,
+        );
+      case 'heading-six':
+      case 'h6':
+        return const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+          color: Colors.black87,
+        );
+      default:
+        return const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          color: Colors.black87,
+        );
+    }
+  }
+
+  /// Apply inline styling (bold, italic, underline, strikethrough, etc.) from child properties
+  TextStyle _applyInlineStyling(TextStyle base, Map<String, dynamic> child) {
+    TextStyle result = base;
+
+    // Bold
+    if (child['bold'] == true) {
+      result = result.copyWith(fontWeight: FontWeight.bold);
+    }
+    
+    // Italic
+    if (child['italic'] == true) {
+      result = result.copyWith(fontStyle: FontStyle.italic);
+    }
+    
+    // Underline
+    if (child['underline'] == true) {
+      result = result.copyWith(decoration: TextDecoration.underline);
+    }
+
+    // Strikethrough
+    if (child['strikethrough'] == true || child['strike'] == true) {
+      result = result.copyWith(decoration: TextDecoration.lineThrough);
+    }
+
+    // Text Color
+    if (child['color'] != null) {
+      final colorValue = child['color'];
+      Color? textColor;
+      
+      if (colorValue is String) {
+        // Handle hex color: #FF5733 or FF5733
+        try {
+          final hex = colorValue.replaceAll('#', '');
+          textColor = Color(int.parse('FF$hex', radix: 16));
+        } catch (_) {
+          // Handle named colors
+          textColor = _getNamedColor(colorValue);
+        }
+      } else if (colorValue is int) {
+        textColor = Color(colorValue);
+      }
+      
+      if (textColor != null) {
+        result = result.copyWith(color: textColor);
+      }
+    }
+
+    // Background Color
+    if (child['backgroundColor'] != null || child['background'] != null) {
+      final bgValue = child['backgroundColor'] ?? child['background'];
+      Color? bgColor;
+      
+      if (bgValue is String) {
+        try {
+          final hex = bgValue.replaceAll('#', '');
+          bgColor = Color(int.parse('FF$hex', radix: 16));
+        } catch (_) {
+          bgColor = _getNamedColor(bgValue);
+        }
+      } else if (bgValue is int) {
+        bgColor = Color(bgValue);
+      }
+      
+      if (bgColor != null) {
+        result = result.copyWith(backgroundColor: bgColor);
+      }
+    }
+
+    // Font Size
+    if (child['fontSize'] != null) {
+      final size = child['fontSize'];
+      if (size is num) {
+        result = result.copyWith(fontSize: size.toDouble());
+      }
+    }
+
+    return result;
+  }
+
+  /// Get color from named color strings
+  Color? _getNamedColor(String colorName) {
+    final name = colorName.toLowerCase();
+    switch (name) {
+      case 'red': return Colors.red;
+      case 'blue': return Colors.blue;
+      case 'green': return Colors.green;
+      case 'yellow': return Colors.yellow;
+      case 'orange': return Colors.orange;
+      case 'purple': return Colors.purple;
+      case 'pink': return Colors.pink;
+      case 'teal': return Colors.teal;
+      case 'cyan': return Colors.cyan;
+      case 'indigo': return Colors.indigo;
+      case 'lime': return Colors.lime;
+      case 'amber': return Colors.amber;
+      case 'brown': return Colors.brown;
+      case 'grey': case 'gray': return Colors.grey;
+      case 'black': return Colors.black;
+      case 'white': return Colors.white;
+      default: return null;
+    }
+  }
+
 
   Map<String, dynamic>? _findField(String label) {
     for (var field in _embeddedFields) {
@@ -210,32 +482,6 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
     }
   }
 
-  TextStyle _getStyle(String? type, Map<String, dynamic> styling) {
-    TextStyle base;
-    
-    switch (type) {
-      case 'heading-one':
-      case 'h1':
-        base = const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
-        break;
-      case 'heading-two':
-      case 'h2':
-        base = const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
-        break;
-      case 'heading-three':
-      case 'h3':
-        base = const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, height: 1.3, color: Colors.black87);
-        break;
-      default:
-        base = const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87);
-    }
-
-    if (styling['bold'] == true) base = base.copyWith(fontWeight: FontWeight.bold);
-    if (styling['italic'] == true) base = base.copyWith(fontStyle: FontStyle.italic);
-    if (styling['underline'] == true) base = base.copyWith(decoration: TextDecoration.underline);
-
-    return base;
-  }
 
   Widget _textField(String id, String label) {
     return Container(

@@ -422,12 +422,6 @@ class _RichTextEditorWidgetState extends State<RichTextEditorWidget> {
               onPressed: () => _toggleInlineFormat(Attribute.strikeThrough),
               isSelected: _isInlineFormatActive(Attribute.strikeThrough),
             ),
-          if (_toolbarConfig.code)
-            _ToolbarButton(
-              icon: Icons.code,
-              onPressed: () => _toggleInlineFormat(Attribute.inlineCode),
-              isSelected: _isInlineFormatActive(Attribute.inlineCode),
-            ),
 
           // ALIGNMENT
           if (_toolbarConfig.align) ...[
@@ -466,14 +460,6 @@ class _RichTextEditorWidgetState extends State<RichTextEditorWidget> {
               isSelected: _isListActive(Attribute.ol),
             ),
           ],
-
-          // QUOTE
-          if (_toolbarConfig.quote)
-            _ToolbarButton(
-              icon: Icons.format_quote,
-              onPressed: () => _toggleList(Attribute.blockQuote),
-              isSelected: _isListActive(Attribute.blockQuote),
-            ),
 
           // INSERT FIELDS
           if (_toolbarConfig.insertFields.isNotEmpty) ...[

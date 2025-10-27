@@ -122,7 +122,7 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
                         }
                       }
                     },
-                    onPanEnd: (details) {
+                    onPanEnd: (details) async {
                       _isDrawing = false;
                       points.add(null);
                       
@@ -130,8 +130,12 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
                         setState(() {});
                       }
                       
-                      // Just mark as signed - no expensive conversion
-                      widget.onChanged('__SIGNATURE_DRAWN__');
+                      // Export signature as base64 and store it
+                      final base64Data = await _saveSignatureAsBase64();
+                      if (base64Data != null) {
+                        widget.onChanged(base64Data);
+                        debugPrint('✅ Signature exported: ${base64Data.length} chars');
+                      }
                     },
                     child: CustomPaint(
                       painter: SignaturePainter(

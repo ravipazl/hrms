@@ -182,12 +182,13 @@ class SubmissionFieldRenderer extends StatelessWidget {
                         data['slateContent'] as List<dynamic>? ?? 
                         data['content'] as List<dynamic>? ?? [];
     
-    // Get embedded field values from submission data
-    final embeddedValues = data['embeddedValues'] as Map<String, dynamic>? ?? 
+    // Get embedded field values from submission data - CHECK ALL POSSIBLE KEYS!
+    final embeddedValues = data['embeddedFieldValues'] as Map<String, dynamic>? ??  // ✅ CORRECT KEY!
+                          data['embeddedValues'] as Map<String, dynamic>? ?? 
                           data['values'] as Map<String, dynamic>? ?? {};
     
     debugPrint('📋 Slate elements: ${slateContent.length}');
-    debugPrint('📋 Embedded values: ${embeddedValues.keys.toList()}');
+    debugPrint('📋 Embedded field values: $embeddedValues');
     
     if (slateContent.isEmpty) {
       return const Text('No content', style: TextStyle(color: Colors.grey));

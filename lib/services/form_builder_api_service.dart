@@ -362,9 +362,10 @@ class FormBuilderAPIService {
           cleaned[key] = hasValues ? buffer.toString() : '<p></p>';
           print('     📏 Generated HTML: ${cleaned[key]}');
         } else if (hasContent) {
-          // Rich text with content - extract just the content string
-          print('  🔧 Extracting content string from rich text field "$key"');
-          cleaned[key] = map['content'] ?? '<p></p>';  // Extract content property as string
+          // Rich text with content - KEEP THE ENTIRE OBJECT WITH ALL FIELDS
+          print('  🔧 Rich text field "$key": KEEPING complete object with embeddedFieldValues');
+          print('     embeddedFieldValues: ${map["embeddedFieldValues"]}');
+          cleaned[key] = map;  // ✅ Keep the complete rich text object!
         } else {
           // Recursively clean nested maps (for other complex fields)
           cleaned[key] = _cleanFormData(map);

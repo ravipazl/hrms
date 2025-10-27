@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'package:collection/collection.dart';
 import '../models/form_builder/form_field.dart';
 import '../models/form_builder/form_data.dart';
 import '../models/form_builder/enhanced_header_config.dart';
@@ -25,6 +27,11 @@ class FormBuilderProvider extends ChangeNotifier {
   // Undo/Redo stacks
   final List<FormData> _undoStack = [];
   final List<FormData> _redoStack = [];
+  
+  // Debounce timer for state saves
+  Timer? _stateSaveTimer;
+  static const _stateSaveDuration = Duration(milliseconds: 1000);
+  bool _hasPendingStateSave = false;
   
   // API Service - injected via constructor
   late final FormBuilderAPIService _apiService;
@@ -83,7 +90,7 @@ class FormBuilderProvider extends ChangeNotifier {
       return; // No actual change, skip notification
     }
     
-    _saveState(); // For undo
+    _saveStateDebounced(); // For undo - debounced
     
     _fields[index] = updatedField;
     
@@ -97,27 +104,48 @@ class FormBuilderProvider extends ChangeNotifier {
 
   /// Helper to compare fields
   bool _fieldsAreEqual(FormField field1, FormField field2) {
-    return field1.id == field2.id &&
-           field1.label == field2.label &&
-           field1.placeholder == field2.placeholder &&
-           field1.required == field2.required &&
-           field1.width == field2.width &&
-           field1.height == field2.height &&
-           _mapsAreEqual(field1.props, field2.props);
+    if (field1.id != field2.id ||
+        field1.label != field2.label ||
+        field1.placeholder != field2.placeholder ||
+        field1.required != field2.required ||
+        field1.width != field2.width ||
+        field1.height != field2.height) {
+      return false;
+    }
+    
+    // Use deep equality for props (handles nested lists/maps)
+    return _propsAreEqual(field1.props, field2.props);
   }
 
-  /// Helper to compare maps
-  bool _mapsAreEqual(Map<String, dynamic> map1, Map<String, dynamic> map2) {
-    if (map1.length != map2.length) return false;
-    for (final key in map1.keys) {
-      if (map1[key] != map2[key]) return false;
-    }
-    return true;
+  /// Helper to compare props with deep equality
+  bool _propsAreEqual(Map<String, dynamic> props1, Map<String, dynamic> props2) {
+    const deepEq = DeepCollectionEquality();
+    return deepEq.equals(props1, props2);
+  }
+
+  /// Debounced state save for undo
+  void _saveStateDebounced() {
+    _hasPendingStateSave = true;
+    
+    _stateSaveTimer?.cancel();
+    _stateSaveTimer = Timer(_stateSaveDuration, () {
+      if (_hasPendingStateSave) {
+        _saveState();
+        _hasPendingStateSave = false;
+      }
+    });
+  }
+  
+  /// Force immediate state save (for critical actions)
+  void _saveStateImmediate() {
+    _stateSaveTimer?.cancel();
+    _hasPendingStateSave = false;
+    _saveState();
   }
 
   /// Delete field
   void deleteField(String fieldId) {
-    _saveState();
+    _saveStateImmediate();
     
     _fields.removeWhere((f) => f.id == fieldId);
     
@@ -131,7 +159,7 @@ class FormBuilderProvider extends ChangeNotifier {
 
   /// Duplicate field
   void duplicateField(String fieldId) {
-    _saveState();
+    _saveStateImmediate();
     
     final field = _fields.firstWhere((f) => f.id == fieldId);
     final index = _fields.indexWhere((f) => f.id == fieldId);
@@ -459,5 +487,11 @@ class FormBuilderProvider extends ChangeNotifier {
     _saveState();
     _fields = List.from(newFields);
     notifyListeners();
+  }
+  
+  @override
+  void dispose() {
+    _stateSaveTimer?.cancel();
+    super.dispose();
   }
 }

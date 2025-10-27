@@ -191,17 +191,32 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
       wrapAlign = WrapAlignment.end;
     }
 
-    // Use Wrap for inline layout with proper hit testing
+    // Use single widget for inline layout
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        alignment: wrapAlign,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 0,
-        runSpacing: 0,
-        children: _buildInlineWidgetsWithText(children, baseStyle),
+      child: Align(
+        alignment: _getAlignmentFromString(align),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 0,
+          runSpacing: 0,
+          children: _buildInlineWidgetsWithText(children, baseStyle),
+        ),
       ),
     );
+  }
+
+  Alignment _getAlignmentFromString(String? align) {
+    switch (align) {
+      case 'center':
+        return Alignment.center;
+      case 'right':
+        return Alignment.centerRight;
+      case 'justify':
+      case 'left':
+      default:
+        return Alignment.centerLeft;
+    }
   }
 
   // Build inline spans with interactive fields using WidgetSpan
@@ -227,22 +242,7 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
 
   // Build inline widgets with combined text for better layout
   List<Widget> _buildInlineWidgetsWithText(List<dynamic> children, TextStyle baseStyle) {
-    final List<Widget> widgets = [];
-    String textBuffer = '';
-    TextStyle? currentStyle;
-
-    void flushText() {
-      if (textBuffer.isNotEmpty) {
-        widgets.add(
-          SelectableText(
-            textBuffer,
-            style: currentStyle ?? baseStyle,
-          ),
-        );
-        textBuffer = '';
-        currentStyle = null;
-      }
-    }
+    final List<InlineSpan> spans = [];
 
     for (var child in children) {
       if (child is Map<String, dynamic> && child.containsKey('text')) {
@@ -250,37 +250,93 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
         final styling = child;
 
         if (_containsEmbeddedFieldMarker(text)) {
-          // Parse text with fields
-          final segments = _parseTextAndFields(text, styling, baseStyle);
-          
-          for (var segment in segments) {
-            if (segment is _TextSegment) {
-              // Accumulate text
-              if (currentStyle == null) {
-                currentStyle = _applyTextStyling(baseStyle, styling);
-              }
-              textBuffer += segment.text;
-            } else if (segment is Widget) {
-              // Flush text before field
-              flushText();
-              // Add field widget
-              widgets.add(segment);
-            }
-          }
+          // Parse text with fields and create inline spans
+          spans.addAll(_parseTextAndFieldsAsSpans(text, styling, baseStyle));
         } else if (text.isNotEmpty) {
-          // Accumulate regular text
-          if (currentStyle == null) {
-            currentStyle = _applyTextStyling(baseStyle, styling);
-          }
-          textBuffer += text;
+          // Add regular text as TextSpan
+          spans.add(TextSpan(
+            text: text,
+            style: _applyTextStyling(baseStyle, styling),
+          ));
         }
       }
     }
 
-    // Flush remaining text
-    flushText();
+    // Return a single RichText widget with all spans inline
+    return [Text.rich(
+      TextSpan(children: spans, style: baseStyle),
+    )];
+  }
 
-    return widgets;
+  // Parse text and fields as InlineSpans for true inline layout
+  List<InlineSpan> _parseTextAndFieldsAsSpans(
+    String text,
+    Map<String, dynamic> styling,
+    TextStyle baseStyle,
+  ) {
+    final List<InlineSpan> spans = [];
+    final emojiPattern = RegExp(r'([📝🔢📧📅📋☑️🔘📄📌])\s*\[(.*?)\]\s*');
+
+    int lastMatchEnd = 0;
+    final matches = emojiPattern.allMatches(text);
+
+    for (var match in matches) {
+      // Add text before the field
+      if (match.start > lastMatchEnd) {
+        final beforeText = text.substring(lastMatchEnd, match.start);
+        if (beforeText.isNotEmpty) {
+          spans.add(TextSpan(
+            text: beforeText,
+            style: _applyTextStyling(baseStyle, styling),
+          ));
+        }
+      }
+
+      final label = match.group(2) ?? '';
+      final embeddedField = _findEmbeddedFieldByLabel(label);
+
+      if (embeddedField != null) {
+        final fieldId = embeddedField['id'] as String;
+        final fieldType = embeddedField['fieldType'] as String;
+        final currentValue = _fieldValues[fieldId];
+
+        // Add space before field
+        spans.add(const TextSpan(text: ' '));
+
+        // Add field as WidgetSpan for inline display
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _buildFieldByType(fieldId, fieldType, label, currentValue),
+          ),
+        );
+
+        // Add space after field
+        spans.add(const TextSpan(text: ' '));
+      } else {
+        // Fallback: show emoji and label as text
+        final emoji = match.group(1) ?? '';
+        spans.add(TextSpan(
+          text: '$emoji [$label] ',
+          style: _applyTextStyling(baseStyle, styling),
+        ));
+      }
+
+      lastMatchEnd = match.end;
+    }
+
+    // Add remaining text after last field
+    if (lastMatchEnd < text.length) {
+      final remainingText = text.substring(lastMatchEnd);
+      if (remainingText.isNotEmpty) {
+        spans.add(TextSpan(
+          text: remainingText,
+          style: _applyTextStyling(baseStyle, styling),
+        ));
+      }
+    }
+
+    return spans;
   }
 
   // Parse text with embedded fields and return list of text segments and widgets
@@ -308,12 +364,9 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
         final fieldType = embeddedField['fieldType'] as String;
         final currentValue = _fieldValues[fieldId];
 
-        // Add field as widget with proper z-index
+        // Add field as widget without extra padding
         items.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: _buildFieldByType(fieldId, fieldType, label, currentValue),
-          ),
+          _buildFieldByType(fieldId, fieldType, label, currentValue),
         );
       } else {
         // Fallback
@@ -415,19 +468,38 @@ class _PreviewRichTextFieldState extends State<PreviewRichTextField> {
   Widget _buildListElement(String? type, List<dynamic> children, TextStyle baseStyle) {
     final isNumbered = type == 'numbered-list';
     
+    // Build inline spans for list content
+    final List<InlineSpan> contentSpans = [];
+    
+    for (var child in children) {
+      if (child is Map<String, dynamic> && child.containsKey('text')) {
+        final text = child['text'] as String;
+        final styling = child;
+
+        if (_containsEmbeddedFieldMarker(text)) {
+          contentSpans.addAll(_parseTextAndFieldsAsSpans(text, styling, baseStyle));
+        } else if (text.isNotEmpty) {
+          contentSpans.add(TextSpan(
+            text: text,
+            style: _applyTextStyling(baseStyle, styling),
+          ));
+        }
+      }
+    }
+    
     return Padding(
       padding: const EdgeInsets.only(left: 20, bottom: 8),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 0,
-        runSpacing: 0,
-        children: [
-          SelectableText(
-            isNumbered ? '1. ' : '• ',
-            style: baseStyle,
-          ),
-          ..._buildInlineWidgetsWithText(children, baseStyle),
-        ],
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: isNumbered ? '1. ' : '• ',
+              style: baseStyle,
+            ),
+            ...contentSpans,
+          ],
+          style: baseStyle,
+        ),
       ),
     );
   }

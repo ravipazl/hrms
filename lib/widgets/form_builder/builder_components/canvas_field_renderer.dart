@@ -356,6 +356,7 @@ class CanvasFieldRenderer {
                 const SizedBox(height: 8),
               ],
               RichTextEditorWidget(
+                key: ValueKey('rich_text_${field.id}'),
                 field: field,
                 onFieldUpdate: (fieldId, updates) {
                   provider.updateField(fieldId, updates);

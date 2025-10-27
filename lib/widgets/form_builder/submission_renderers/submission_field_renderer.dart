@@ -386,9 +386,13 @@ class SubmissionFieldRenderer extends StatelessWidget {
   }
   
   TextStyle _getSlateTextStyle(String? type) {
+    debugPrint('🎨 Getting style for type: "$type"');
+    
     switch (type) {
       case 'heading-one':
+      case 'heading-1':
       case 'h1':
+        debugPrint('  → H1 style applied');
         return const TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
@@ -396,7 +400,9 @@ class SubmissionFieldRenderer extends StatelessWidget {
           color: Colors.black87,
         );
       case 'heading-two':
+      case 'heading-2':
       case 'h2':
+        debugPrint('  → H2 style applied');
         return const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
@@ -404,7 +410,9 @@ class SubmissionFieldRenderer extends StatelessWidget {
           color: Colors.black87,
         );
       case 'heading-three':
+      case 'heading-3':
       case 'h3':
+        debugPrint('  → H3 style applied');
         return const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -412,13 +420,26 @@ class SubmissionFieldRenderer extends StatelessWidget {
           color: Colors.black87,
         );
       case 'blockquote':
+      case 'quote':
+        debugPrint('  → Blockquote style applied');
         return const TextStyle(
           fontSize: 14,
           height: 1.5,
           fontStyle: FontStyle.italic,
           color: Colors.black54,
         );
+      case 'bulleted-list':
+      case 'numbered-list':
+      case 'list-item':
+        debugPrint('  → List item style applied');
+        return const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          color: Colors.black87,
+        );
+      case 'paragraph':
       default:
+        debugPrint('  → Default paragraph style applied');
         return const TextStyle(
           fontSize: 14,
           height: 1.5,

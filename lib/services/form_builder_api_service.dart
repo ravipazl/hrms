@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:dio/browser.dart';
 import '../models/form_builder/form_template.dart';
@@ -452,6 +453,40 @@ class FormBuilderAPIService {
   }
 
   // ==================== FILE UPLOAD OPERATIONS ====================
+
+  Future<String?> uploadSignature(Uint8List pngBytes, String fieldId) async {
+    try {
+      print('📤 Uploading signature...');
+      print('✅ Signature bytes: ${pngBytes.length} bytes');
+      
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          pngBytes,
+          filename: 'signature.png',
+        ),
+        'field_id': fieldId,
+      });
+
+      final response = await _dio.post('/upload-signature/', data: formData);
+
+      if (response.statusCode == 201 && response.data['success'] == true) {
+        final filename = response.data['data']['signature'];
+        print('✅ Upload successful! Filename: $filename');
+        return filename;
+      } else {
+        throw Exception(response.data['message'] ?? 'Upload failed');
+      }
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        throw Exception('Not authenticated');
+      }
+      print('❌ Upload error: ${e.message}');
+      throw Exception('Upload failed: ${e.message}');
+    } catch (e) {
+      print('❌ Unexpected upload error: $e');
+      throw Exception('Upload failed: ${e.toString()}');
+    }
+  }
 
   Future<FileMetadata> uploadFile(File file, String fieldId) async {
     try {

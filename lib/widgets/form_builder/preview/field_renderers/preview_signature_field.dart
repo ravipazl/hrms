@@ -1,9 +1,12 @@
 import 'dart:ui' as ui;
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../models/form_builder/form_field.dart' as form_models;
+import '../../../../services/form_builder_api_service.dart';
+import '../../../../services/auth_service.dart';
 
-/// Preview Signature Field - Functional signature pad field
+/// Preview Signature Field - Uploads signature to server
 class PreviewSignatureField extends StatefulWidget {
   final form_models.FormField field;
   final dynamic value;
@@ -25,20 +28,17 @@ class PreviewSignatureField extends StatefulWidget {
 class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
   List<Offset?> points = [];
   bool isSigned = false;
-  bool _isDrawing = false;
+  bool _isUploading = false;
+  String? _uploadError;
+  String? _uploadedFilename;
 
   @override
   void initState() {
     super.initState();
     if (widget.value != null && widget.value.toString().isNotEmpty) {
       isSigned = true;
+      _uploadedFilename = widget.value.toString();
     }
-  }
-  
-  // Call this to export signature when needed (e.g., on form submit)
-  Future<String?> exportToBase64() async {
-    if (points.isEmpty) return null;
-    return await _saveSignatureAsBase64();
   }
 
   @override
@@ -72,119 +72,160 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
         const SizedBox(height: 8),
 
         // Signature Canvas
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: widget.hasError ? Colors.red : Colors.grey[300]!,
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(8),
-            color: _hexToColor(backgroundColor),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Column(
-              children: [
-                // Signature drawing area with proper constraints
-                SizedBox(
-                  width: double.infinity,
-                  height: 200,
-                  child: GestureDetector(
-                    onPanStart: (details) {
-                      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-                      final localPosition = renderBox.globalToLocal(details.globalPosition);
-                      
-                      _isDrawing = true;
-                      points.add(localPosition);
-                      isSigned = true;
-                      
-                      // Schedule frame to update UI
-                      if (mounted) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) setState(() {});
-                        });
-                      }
-                    },
-                    onPanUpdate: (details) {
-                      if (!_isDrawing) return;
-                      
-                      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-                      final localPosition = renderBox.globalToLocal(details.globalPosition);
-                      
-                      // Only add point if it's within bounds
-                      if (localPosition.dx >= 0 && localPosition.dx <= renderBox.size.width &&
-                          localPosition.dy >= 0 && localPosition.dy <= 200) {
-                        points.add(localPosition);
-                        
-                        // Batch updates - only setState every few points for smooth drawing
-                        if (points.length % 3 == 0 && mounted) {
-                          setState(() {});
-                        }
-                      }
-                    },
-                    onPanEnd: (details) async {
-                      _isDrawing = false;
-                      points.add(null);
-                      
-                      if (mounted) {
-                        setState(() {});
-                      }
-                      
-                      // Export signature as base64 and store it
-                      final base64Data = await _saveSignatureAsBase64();
-                      if (base64Data != null) {
-                        widget.onChanged(base64Data);
-                        debugPrint('✅ Signature exported: ${base64Data.length} chars');
-                      }
-                    },
-                    child: CustomPaint(
-                      painter: SignaturePainter(
-                        points: points,
-                        penColor: _hexToColor(penColor),
+        Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: (_uploadError != null || widget.hasError) ? Colors.red : Colors.grey[300]!,
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                color: _hexToColor(backgroundColor),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Column(
+                  children: [
+                    // Signature drawing area
+                    SizedBox(
+                      width: double.infinity,
+                      height: 200,
+                      child: GestureDetector(
+                        onPanStart: (details) {
+                          final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+                          if (renderBox == null) return;
+                          
+                          final localPosition = renderBox.globalToLocal(details.globalPosition);
+                          
+                          setState(() {
+                            points.add(localPosition);
+                            isSigned = true;
+                            _uploadError = null;
+                          });
+                        },
+                        onPanUpdate: (details) {
+                          final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+                          if (renderBox == null) return;
+                          
+                          final localPosition = renderBox.globalToLocal(details.globalPosition);
+                          
+                          if (localPosition.dx >= 0 && localPosition.dx <= renderBox.size.width &&
+                              localPosition.dy >= 0 && localPosition.dy <= 200) {
+                            points.add(localPosition);
+                            
+                            if (points.length % 3 == 0 && mounted) {
+                              setState(() {});
+                            }
+                          }
+                        },
+                        onPanEnd: (details) async {
+                          setState(() {
+                            points.add(null); // Separate strokes
+                          });
+                          
+                          // Upload signature to server
+                          await Future.delayed(const Duration(milliseconds: 100));
+                          
+                          if (mounted) {
+                            await _uploadSignature();
+                          }
+                        },
+                        child: CustomPaint(
+                          painter: SignaturePainter(
+                            points: points,
+                            penColor: _hexToColor(penColor),
+                          ),
+                          size: Size.infinite,
+                        ),
                       ),
-                      size: Size.infinite,
                     ),
+
+                    // Actions Bar
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Colors.grey[300]!),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              isSigned ? 'Signed ✓' : 'Sign above',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isSigned ? Colors.green[700] : Colors.grey[600],
+                                fontWeight: isSigned ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _clearSignature,
+                            icon: const Icon(Icons.clear, size: 16),
+                            label: const Text('Clear'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[200],
+                              foregroundColor: Colors.grey[700],
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Loading overlay when uploading
+            if (_isUploading)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(),
                   ),
                 ),
-
-                // Actions Bar
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Colors.grey[300]!),
+              ),
+          ],
+        ),
+        
+        // Error or Success message
+        if (_uploadError != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _uploadError!,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 12,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isSigned ? 'Signed' : 'Sign above',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _clearSignature,
-                        icon: const Icon(Icons.clear, size: 16),
-                        label: const Text('Clear'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[200],
-                          foregroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -193,42 +234,100 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
     setState(() {
       points.clear();
       isSigned = false;
+      _uploadedFilename = null;
+      _uploadError = null;
     });
     widget.onChanged('');
   }
 
-  // Export signature to base64 - call this when needed (e.g., form submit)
-  Future<String?> exportSignature() async {
-    if (points.isEmpty) return null;
-    return await _saveSignatureAsBase64();
+  Future<void> _uploadSignature() async {
+    if (_isUploading) {
+      debugPrint('⚠️ Upload already in progress');
+      return;
+    }
+    
+    setState(() {
+      _isUploading = true;
+      _uploadError = null;
+    });
+    
+    try {
+      // Convert signature to PNG
+      final pngBytes = await _convertToPng();
+      if (pngBytes == null) {
+        throw Exception('Failed to convert signature to PNG');
+      }
+      
+      debugPrint('📤 Uploading signature...');
+      debugPrint('✅ Signature bytes: ${pngBytes.length} bytes');
+      
+      // Get API service
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final apiService = FormBuilderAPIService(authService);
+      
+      // Upload to server using the service method
+      final filename = await apiService.uploadSignature(pngBytes, widget.field.id);
+      
+      debugPrint('✅ Upload successful! Filename: $filename');
+      
+      setState(() {
+        _uploadedFilename = filename;
+        _isUploading = false;
+      });
+      
+      // Store filename in form data
+      widget.onChanged(filename);
+      
+    } catch (e) {
+      debugPrint('❌ Upload error: $e');
+      setState(() {
+        _isUploading = false;
+        _uploadError = 'Failed to upload signature: ${e.toString()}';
+      });
+    }
   }
 
-  Future<String?> _saveSignatureAsBase64() async {
+  Future<Uint8List?> _convertToPng() async {
     try {
-      // Get the actual render box to determine canvas size
+      if (points.isEmpty || points.every((p) => p == null)) {
+        debugPrint('⚠️ No signature points to convert');
+        return null;
+      }
+      
       final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-      if (renderBox == null) return null;
+      if (renderBox == null) {
+        debugPrint('❌ RenderBox is null');
+        return null;
+      }
       
       final canvasWidth = renderBox.size.width.toInt();
       final canvasHeight = 200;
       
-      // Create a PictureRecorder to capture the signature
+      if (canvasWidth <= 0 || canvasHeight <= 0) {
+        debugPrint('❌ Invalid canvas dimensions: ${canvasWidth}x${canvasHeight}');
+        return null;
+      }
+      
+      debugPrint('📐 Canvas size: ${canvasWidth}x${canvasHeight}');
+      
+      // Create picture recorder
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       
-      // Set background color
+      // Draw background
       final backgroundColor = widget.field.props['backgroundColor'] as String? ?? '#ffffff';
       canvas.drawRect(
         Rect.fromLTWH(0, 0, canvasWidth.toDouble(), canvasHeight.toDouble()),
         Paint()..color = _hexToColor(backgroundColor),
       );
       
-      // Draw the signature
+      // Draw signature
       final penColor = widget.field.props['penColor'] as String? ?? '#000000';
       final paint = Paint()
         ..color = _hexToColor(penColor)
-        ..strokeWidth = 2.0
-        ..strokeCap = StrokeCap.round;
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
 
       for (int i = 0; i < points.length - 1; i++) {
         if (points[i] != null && points[i + 1] != null) {
@@ -241,18 +340,15 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
       final img = await picture.toImage(canvasWidth, canvasHeight);
       final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
       
-      if (byteData != null) {
-        // Convert to base64
-        final bytes = byteData.buffer.asUint8List();
-        final base64String = base64Encode(bytes);
-        final dataUrl = 'data:image/png;base64,$base64String';
-        
-        debugPrint('✅ Signature converted to base64 (${bytes.length} bytes)');
-        return dataUrl;
+      if (byteData == null) {
+        debugPrint('❌ Failed to convert to PNG bytes');
+        return null;
       }
-      return null;
+      
+      return byteData.buffer.asUint8List();
+      
     } catch (e) {
-      debugPrint('❌ Error converting signature: $e');
+      debugPrint('❌ Error converting to PNG: $e');
       return null;
     }
   }
@@ -266,7 +362,7 @@ class _PreviewSignatureFieldState extends State<PreviewSignatureField> {
   }
 }
 
-/// Custom painter for signature with optimized rendering
+/// Custom painter for signature
 class SignaturePainter extends CustomPainter {
   final List<Offset?> points;
   final Color penColor;
@@ -282,7 +378,6 @@ class SignaturePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..isAntiAlias = true;
 
-    // Draw lines between points efficiently
     for (int i = 0; i < points.length - 1; i++) {
       if (points[i] != null && points[i + 1] != null) {
         canvas.drawLine(points[i]!, points[i + 1]!, paint);
@@ -292,7 +387,6 @@ class SignaturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(SignaturePainter oldDelegate) {
-    // Only repaint if points actually changed
     return points.length != oldDelegate.points.length;
   }
 }

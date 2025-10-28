@@ -610,104 +610,162 @@ class SubmissionFieldRenderer extends StatelessWidget {
     final columnsList = allColumns.toList();
     final tableColumns = _getTableColumnsFromField();
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.table_chart, 
-                  size: 16, 
-                  color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  '${rows.length} row(s) × ${columnsList.length} column(s)',
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate equal width for each column
+        final availableWidth = constraints.maxWidth - 70;
+        final columnWidth = availableWidth / columnsList.length;
+        
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-              columnSpacing: 24,
-              columns: [
-                const DataColumn(
-                  label: Text(
-                    '#',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header banner
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
                   ),
                 ),
-                ...columnsList.map(
-                  (column) => DataColumn(
-                    label: Text(
-                      tableColumns[column] ?? _formatColumnName(column),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, 
+                      size: 16, 
+                      color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${rows.length} row(s) × ${columnsList.length} column(s)',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
                         fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              rows: rows.asMap().entries.map((entry) {
-                final index = entry.key;
-                final row = entry.value;
-                Map<String, dynamic> rowData = {};
-                
-                if (row is Map) {
-                  final data = row['data'];
-                  rowData = Map<String, dynamic>.from(data is Map ? data : row);
-                }
-                
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    ...columnsList.map(
-                      (column) => DataCell(
-                        Container(
-                          constraints: const BoxConstraints(maxWidth: 200),
-                          child: Text(
-                            rowData[column]?.toString() ?? '-',
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                );
-              }).toList(),
-            ),
+                ),
+              ),
+              // Custom Table
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Container(
+                  constraints: BoxConstraints(
+                    minWidth: constraints.maxWidth,
+                  ),
+                  child: Column(
+                    children: [
+                      // Header row
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // # column
+                            Container(
+                              width: 60,
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                              child: const Text(
+                                '#',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            // Data columns
+                            ...columnsList.map((column) => Container(
+                              width: columnWidth,
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(color: Colors.grey.shade300),
+                                ),
+                              ),
+                              child: Text(
+                                tableColumns[column] ?? _formatColumnName(column),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )),
+                          ],
+                        ),
+                      ),
+                      // Data rows
+                      ...rows.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final row = entry.value;
+                        Map<String, dynamic> rowData = {};
+                        
+                        if (row is Map) {
+                          final data = row['data'];
+                          rowData = Map<String, dynamic>.from(data is Map ? data : row);
+                        }
+                        
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: index.isEven ? Colors.white : Colors.grey.shade50,
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // # cell
+                              Container(
+                                width: 60,
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              // Data cells
+                              ...columnsList.map((column) => Container(
+                                width: columnWidth,
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                ),
+                                child: Text(
+                                  rowData[column]?.toString() ?? '-',
+                                  style: const TextStyle(fontSize: 13),
+                                  softWrap: true,
+                                ),
+                              )),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

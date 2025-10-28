@@ -1162,9 +1162,13 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                     child: Text(type.referenceValue),
                   )).toList(),
                   onChanged: (value) => setState(() {
-                    card.typeRequisition = value ?? '1';
-                    if (value == '2') { // Replacement
-                      card.headcount = '1';
+                    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                    final newHireId = provider.requisitionTypes.isNotEmpty ? provider.requisitionTypes[0].id.toString() : '1';
+                    final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                    
+                    card.typeRequisition = value ?? newHireId;
+                    if (value == replacementId) { // Replacement
+                      card.headcount = newHireId;
                     }
                   }),
                 ),
@@ -1182,7 +1186,10 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                   ),
-                  items: (card.typeRequisition == '1' ? provider.newHireReasons : provider.replacementReasons)
+                  items: (() {
+                    final newHireId = provider.requisitionTypes.isNotEmpty ? provider.requisitionTypes[0].id.toString() : '1';
+                    return card.typeRequisition == newHireId ? provider.newHireReasons : provider.replacementReasons;
+                  })()
                       .map((reason) => DropdownMenuItem(
                         value: reason.id.toString(),
                         child: Text(
@@ -1215,7 +1222,11 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                     labelText: 'Head Count *',
                     border: const OutlineInputBorder(),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                    enabled: card.typeRequisition != '2', // Disabled for replacement
+                    enabled: (() {
+                      final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                      final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                      return card.typeRequisition != replacementId;
+                    })(), // Disabled for replacement
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (value) => card.headcount = value,
@@ -1301,7 +1312,11 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
         ),
         
         // Employee information for replacement
-        if (card.typeRequisition == '2') ...[
+        if ((() {
+          final provider = Provider.of<RequisitionProvider>(context, listen: false);
+          final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+          return card.typeRequisition == replacementId;
+        })()) ...[
           const SizedBox(height: 16),
           const Text(
             'Employee Information',
@@ -1319,8 +1334,12 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (value) => card.employeeNo = value,
-                  validator: (value) => card.typeRequisition == '2' && value?.isEmpty == true 
-                      ? 'Employee number is required for replacement' : null,
+                  validator: (value) {
+                    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                    final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                    return card.typeRequisition == replacementId && value?.isEmpty == true 
+                        ? 'Employee number is required for replacement' : null;
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -1332,8 +1351,12 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) => card.employeeName = value,
-                  validator: (value) => card.typeRequisition == '2' && value?.isEmpty == true 
-                      ? 'Employee name is required for replacement' : null,
+                  validator: (value) {
+                    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                    final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                    return card.typeRequisition == replacementId && value?.isEmpty == true 
+                        ? 'Employee name is required for replacement' : null;
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -1375,8 +1398,12 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                       });
                     }
                   },
-                  validator: (value) => card.typeRequisition == '2' && value?.isEmpty == true 
-                      ? 'Date of resignation is required for replacement' : null,
+                  validator: (value) {
+                    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                    final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                    return card.typeRequisition == replacementId && value?.isEmpty == true 
+                        ? 'Date of resignation is required for replacement' : null;
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -1388,8 +1415,12 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) => card.resignationReason = value,
-                  validator: (value) => card.typeRequisition == '2' && value?.isEmpty == true 
-                      ? 'Resignation reason is required for replacement' : null,
+                  validator: (value) {
+                    final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                    final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                    return card.typeRequisition == replacementId && value?.isEmpty == true 
+                        ? 'Resignation reason is required for replacement' : null;
+                  },
                 ),
               ),
             ],
@@ -2226,11 +2257,20 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
               ),
               const SizedBox(height: 8),
               _buildPreviewRow('Type of Requisition', _getDisplayValue(card.typeRequisition, 'requisitionTypes')),
-              _buildPreviewRow('Reason', _getDisplayValue(card.requirementsReason, card.typeRequisition == '1' ? 'newHireReasons' : 'replacementReasons')),
+              _buildPreviewRow('Reason', (() {
+                final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                final newHireId = provider.requisitionTypes.isNotEmpty ? provider.requisitionTypes[0].id.toString() : '1';
+                final reasonType = card.typeRequisition == newHireId ? 'newHireReasons' : 'replacementReasons';
+                return _getDisplayValue(card.requirementsReason, reasonType);
+              })()),
               _buildPreviewRow('Head Count', card.headcount),
               _buildPreviewRow('Vacancy Date', card.vacancyToBeFilled ?? 'Not set'),
               _buildPreviewRow('Employment Type', _getDisplayValue(card.employmentType, 'employmentTypes')),
-              if (card.typeRequisition == '2') ...[
+              if ((() {
+                final provider = Provider.of<RequisitionProvider>(context, listen: false);
+                final replacementId = provider.requisitionTypes.length > 1 ? provider.requisitionTypes[1].id.toString() : '2';
+                return card.typeRequisition == replacementId;
+              })()) ...[
                 const SizedBox(height: 8),
                 const Text(
                   'Employee Information:',
@@ -2457,9 +2497,9 @@ class RequisitionPositionCard {
   String? resignationReason;
 
   RequisitionPositionCard({
-    this.typeRequisition = '1',
+    this.typeRequisition = '1', // Default to first type
     this.requirementsReason,
-    this.headcount = '1',
+    this.headcount = '1', // Default to 1
     this.vacancyToBeFilled,
     this.employmentType,
     this.justificationText,
@@ -2477,9 +2517,7 @@ class RequisitionPositionCard {
   factory RequisitionPositionCard.fromPosition(RequisitionPosition position) {
     return RequisitionPositionCard(
       typeRequisition: position.typeRequisition,
-      requirementsReason: position.typeRequisition == '1' 
-          ? position.requirementsRequisitionNewhire 
-          : position.requirementsRequisitionReplacement,
+      requirementsReason: position.requirementsRequisitionNewhire ?? position.requirementsRequisitionReplacement,
       headcount: position.requisitionQuantity.toString(),
       vacancyToBeFilled: position.vacancyToBeFilled,
       employmentType: position.employmentType,
@@ -2494,8 +2532,8 @@ class RequisitionPositionCard {
   RequisitionPosition toRequisitionPosition() {
     return RequisitionPosition(
       typeRequisition: typeRequisition,
-      requirementsRequisitionNewhire: typeRequisition == '1' ? requirementsReason : null,
-      requirementsRequisitionReplacement: typeRequisition == '2' ? requirementsReason : null,
+      requirementsRequisitionNewhire: requirementsReason,
+      requirementsRequisitionReplacement: requirementsReason,
       requisitionQuantity: int.tryParse(headcount) ?? 1,
       vacancyToBeFilled: vacancyToBeFilled,
       employmentType: employmentType,

@@ -144,29 +144,45 @@ class _NumberFieldRendererState extends State<NumberFieldRenderer> {
   String? _validate(String? value) {
     final title = widget.fieldSchema['title'] as String? ?? widget.fieldId;
     
+    // DEBUG: Print validation info
+    debugPrint('🔍 NUMBER VALIDATION DEBUG:');
+    debugPrint('  Field: $title');
+    debugPrint('  Input value: "$value"');
+    debugPrint('  Schema: ${widget.fieldSchema}');
+    
     if (widget.isRequired && (value == null || value.trim().isEmpty)) {
+      debugPrint('  ❌ FAILED: Required field is empty');
       return '$title is required';
     }
     
     if (value == null || value.isEmpty) {
+      debugPrint('  ✅ PASSED: Empty non-required field');
       return null;
     }
     
     final numValue = num.tryParse(value);
     if (numValue == null) {
+      debugPrint('  ❌ FAILED: Not a valid number');
       return 'Please enter a valid number';
     }
     
+    debugPrint('  Parsed number: $numValue');
+    
     final minimum = widget.fieldSchema['minimum'] as num?;
+    debugPrint('  Minimum: $minimum');
     if (minimum != null && numValue < minimum) {
+      debugPrint('  ❌ FAILED: $numValue < $minimum');
       return '$title must be at least $minimum';
     }
     
     final maximum = widget.fieldSchema['maximum'] as num?;
+    debugPrint('  Maximum: $maximum');
     if (maximum != null && numValue > maximum) {
+      debugPrint('  ❌ FAILED: $numValue > $maximum');
       return '$title must be no more than $maximum';
     }
     
+    debugPrint('  ✅ PASSED: Valid number in range');
     return null;
   }
 }

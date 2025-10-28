@@ -1,6 +1,7 @@
 // lib/screens/approval_action_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:html' as html;
 import '../models/approval/workflow_step_detail.dart';
@@ -823,6 +824,9 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly, // ✅ Only allow digits (0-9)
+                      ],
                       decoration: InputDecoration(
                         hintText: '0',
                         border: const OutlineInputBorder(),

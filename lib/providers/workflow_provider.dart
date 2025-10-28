@@ -281,13 +281,19 @@ class WorkflowProvider with ChangeNotifier {
 
     // Create new node with guaranteed unique ID
     _nodeIdCounter++;
+    
+    // ✅ FIX: Don't add count suffix for outcome nodes
+    final nodeLabel = isOutcomeNode 
+        ? dbNode.displayName  // Outcome nodes: "Approved", "Hold", "Reject"
+        : '${dbNode.displayName} ${existingCount + 1}';  // Approval nodes: "Approver 1", "Approver 2"
+    
     final newNode = WorkflowNode(
       id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}-$_nodeIdCounter',
       type: uiNodeType,
       position: Offset(baseX, baseY),
       data: WorkflowNodeData(
-        label: '${dbNode.displayName} ${existingCount + 1}',
-        title: '${dbNode.displayName} ${existingCount + 1}',
+        label: nodeLabel,
+        title: nodeLabel,
         color: color,
         stepOrder: existingCount + 1,
         dbNodeId: dbNode.id,

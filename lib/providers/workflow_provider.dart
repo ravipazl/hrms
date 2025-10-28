@@ -281,13 +281,19 @@ class WorkflowProvider with ChangeNotifier {
 
     // Create new node with guaranteed unique ID
     _nodeIdCounter++;
+    
+    // ✅ FIX: Don't add count suffix for outcome nodes
+    final nodeLabel = isOutcomeNode 
+        ? dbNode.displayName  // Outcome nodes: "Approved", "Hold", "Reject"
+        : '${dbNode.displayName} ${existingCount + 1}';  // Approval nodes: "Approver 1", "Approver 2"
+    
     final newNode = WorkflowNode(
       id: '$uiNodeType-${DateTime.now().millisecondsSinceEpoch}-$_nodeIdCounter',
       type: uiNodeType,
       position: Offset(baseX, baseY),
       data: WorkflowNodeData(
-        label: '${dbNode.displayName} ${existingCount + 1}',
-        title: '${dbNode.displayName} ${existingCount + 1}',
+        label: nodeLabel,
+        title: nodeLabel,
         color: color,
         stepOrder: existingCount + 1,
         dbNodeId: dbNode.id,
@@ -458,13 +464,12 @@ class WorkflowProvider with ChangeNotifier {
     print('   ✅ Edge label: $label, condition: $condition');
     print('   ✅ Total edges now: ${updatedEdges.length}');
 
-    // ✅ CRITICAL FIX: Clear connection source but keep mode active
-    // This removes the dashed preview line while keeping connection mode on
-    // User must click connection handle again to start new connection
+    // ✅ FIX: Automatically turn off connection mode after successful connection
+    // This removes both the connection handle and dashed preview line
+    _connectionMode = false;
     _connectionSource = null;
-    print('   🔄 Connection mode stays ACTIVE, but source cleared');
-    print('   🔄 Dashed preview line will disappear');
-    print('   🔄 User must click connection handle again for next connection');
+    print('   🔄 Connection mode automatically turned OFF');
+    print('   🔄 Connection handle and preview line will disappear');
     
     notifyListeners();
   }

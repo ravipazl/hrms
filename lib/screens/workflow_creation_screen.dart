@@ -30,6 +30,9 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   // ✅ NEW: Available departments list
   List<Department> _availableDepartments = [];
   bool _loadingDepartments = false;
+  
+  // ✅ FIX: Local state for dropdown display value
+  int? _selectedStageId;
 
   @override
   void initState() {
@@ -57,6 +60,11 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     // Step 4: Update text controllers with loaded data
     _nameController.text = provider.template.name;
     _descriptionController.text = provider.template.description;
+    
+    // ✅ FIX: Initialize local dropdown state
+    setState(() {
+      _selectedStageId = provider.selectedStage?.id;
+    });
   }
 
   // ✅ NEW: Load departments from API - EXACTLY like React
@@ -356,7 +364,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
-              value: provider.selectedStage?.id,
+              value: _selectedStageId, // ✅ FIX: Use local state instead of provider state
               isExpanded: true,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
@@ -389,6 +397,11 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   ? null
                   : (stageId) async {
                       if (stageId != null) {
+                        // ✅ FIX: Immediately update dropdown display
+                        setState(() {
+                          _selectedStageId = stageId;
+                        });
+                        
                         final stage = provider.availableStages.firstWhere(
                           (s) => s.id == stageId,
                         );
@@ -396,9 +409,16 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                         if (provider.template.nodes.isNotEmpty) {
                           final confirm = await _showStageChangeWarning();
                           if (confirm == true) {
+                            // User confirmed - change the stage
                             await provider.changeStage(stage);
+                          } else {
+                            // User cancelled - revert dropdown to previous value
+                            setState(() {
+                              _selectedStageId = provider.selectedStage?.id;
+                            });
                           }
                         } else {
+                          // No nodes, change directly
                           await provider.changeStage(stage);
                         }
                       }

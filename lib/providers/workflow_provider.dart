@@ -464,13 +464,12 @@ class WorkflowProvider with ChangeNotifier {
     print('   ✅ Edge label: $label, condition: $condition');
     print('   ✅ Total edges now: ${updatedEdges.length}');
 
-    // ✅ CRITICAL FIX: Clear connection source but keep mode active
-    // This removes the dashed preview line while keeping connection mode on
-    // User must click connection handle again to start new connection
+    // ✅ FIX: Automatically turn off connection mode after successful connection
+    // This removes both the connection handle and dashed preview line
+    _connectionMode = false;
     _connectionSource = null;
-    print('   🔄 Connection mode stays ACTIVE, but source cleared');
-    print('   🔄 Dashed preview line will disappear');
-    print('   🔄 User must click connection handle again for next connection');
+    print('   🔄 Connection mode automatically turned OFF');
+    print('   🔄 Connection handle and preview line will disappear');
     
     notifyListeners();
   }

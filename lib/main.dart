@@ -17,7 +17,7 @@ import 'screens/form_builder/form_builder_screen.dart';
 import 'services/auth_service.dart';
 import 'services/form_builder_api_service.dart';
 import 'providers/form_builder_provider.dart';
-
+import 'services/api_config.dart';
 void main() {
   setPathUrlStrategy();
   runApp(const MyApp());
@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () {
                   html.window.location.href =
-                      'http://127.0.0.1:8000/workflow/templates/';
+                      '${ApiConfig.djangoBaseUrl}/workflow/templates/';
                 },
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back to Dashboard'),
@@ -164,8 +164,8 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => AuthCheckWrapper(
-                  child: RequisitionEditWrapper(requisitionId: id),
-                ),
+                      child: RequisitionEditWrapper(requisitionId: id),
+                    ),
               );
             }
           }
@@ -178,8 +178,8 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => const AuthCheckWrapper(
-                  child: WorkflowCreationScreen(mode: 'create'),
-                ),
+                      child: WorkflowCreationScreen(mode: 'create'),
+                    ),
               );
 
             case '/edit':
@@ -196,11 +196,11 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => AuthCheckWrapper(
-                  child: WorkflowCreationScreen(
-                    templateId: templateId,
-                    mode: 'edit',
-                  ),
-                ),
+                      child: WorkflowCreationScreen(
+                        templateId: templateId,
+                        mode: 'edit',
+                      ),
+                    ),
               );
 
             case '/view':
@@ -217,11 +217,11 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(
                 settings: settings,
                 builder: (context) => AuthCheckWrapper(
-                  child: WorkflowCreationScreen(
-                    templateId: templateId,
-                    mode: 'view',
-                  ),
-                ),
+                      child: WorkflowCreationScreen(
+                        templateId: templateId,
+                        mode: 'view',
+                      ),
+                    ),
               );
 
             // ✅ Requisition create route - NOW WITH AUTHENTICATION
@@ -230,7 +230,7 @@ class MyApp extends StatelessWidget {
                 settings: settings,
                 builder: (context) => const AuthCheckWrapper(
                   child: RequisitionFormScreen(),
-                ),
+                  ),
               );
 
             // ✅ Form Builder routes with authentication
@@ -469,7 +469,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     // Redirect to Django login
-                    html.window.location.href = 'http://127.0.0.1:8000/login/';
+                    html.window.location.href ='${ApiConfig.djangoBaseUrl}/login/';
                   },
                   icon: const Icon(Icons.arrow_forward, size: 24),
                   label: const Text(
@@ -490,7 +490,7 @@ class _RootRedirectScreenState extends State<RootRedirectScreen> {
               // Alternative link
               TextButton(
                 onPressed: () {
-                  html.window.location.href = 'http://127.0.0.1:8000/';
+                  html.window.location.href = '${ApiConfig.djangoBaseUrl}/';
                 },
                 child: Text(
                   'Or go to Django Dashboard',

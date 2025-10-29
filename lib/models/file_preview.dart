@@ -2,7 +2,7 @@
 
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-
+import '../services/api_config.dart';
 /// Model class for file preview information
 /// Supports both new uploads and existing files from server
 class FilePreview {
@@ -32,7 +32,7 @@ class FilePreview {
   factory FilePreview.fromFile(File file) {
     final fileName = file.path.split('/').last;
     final fileExtension = _getFileExtension(fileName).toLowerCase();
-    
+
     return FilePreview(
       name: fileName,
       size: file.lengthSync(),
@@ -47,7 +47,7 @@ class FilePreview {
   /// Create FilePreview from a PlatformFile (web)
   factory FilePreview.fromPlatformFile(PlatformFile platformFile) {
     final fileExtension = _getFileExtension(platformFile.name).toLowerCase();
-    
+
     return FilePreview(
       name: platformFile.name,
       size: platformFile.size,
@@ -63,37 +63,37 @@ class FilePreview {
   /// ENHANCED: Better parsing of server file data
   factory FilePreview.fromServer(Map<String, dynamic> json) {
     print('🔧 FilePreview.fromServer - Input: $json');
-    
+
     // Extract filename from various possible fields
     String fileName = json['name'] ?? json['filename'] ?? json['file_name'] ?? '';
     String filePath = json['path'] ?? json['file'] ?? '';
     String fileUrl = json['url'] ?? '';
-    
+
     print('   - Initial fileName: "$fileName"');
     print('   - Initial filePath: "$filePath"');
     print('   - Initial fileUrl: "$fileUrl"');
-    
+
     // Construct full URL from path or relative URL
     if (fileUrl.isNotEmpty && !fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
       // Handle relative URLs (e.g., "/media/...")
       if (fileUrl.startsWith('/')) {
-        fileUrl = 'http://127.0.0.1:8000$fileUrl';
+        fileUrl = '${ApiConfig.djangoBaseUrl}$fileUrl';
       } else {
-        fileUrl = 'http://127.0.0.1:8000/$fileUrl';
+        fileUrl = '${ApiConfig.djangoBaseUrl}/$fileUrl';
       }
     } else if (fileUrl.isEmpty && filePath.isNotEmpty) {
       // Construct URL from path if URL is empty
       if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
         fileUrl = filePath;
       } else if (filePath.startsWith('/media/')) {
-        fileUrl = 'http://127.0.0.1:8000$filePath';
+        fileUrl = '${ApiConfig.djangoBaseUrl}$filePath';
       } else if (filePath.startsWith('media/')) {
-        fileUrl = 'http://127.0.0.1:8000/$filePath';
+        fileUrl = '${ApiConfig.djangoBaseUrl}/$filePath';
       } else {
-        fileUrl = 'http://127.0.0.1:8000/media/$filePath';
+        fileUrl = '${ApiConfig.djangoBaseUrl}/media/$filePath';
       }
     }
-    
+
     // Extract filename from URL if fileName is empty
     if (fileName.isEmpty && fileUrl.isNotEmpty) {
       final urlParts = fileUrl.split('/');
@@ -101,7 +101,7 @@ class FilePreview {
         fileName = urlParts.last.split('?').first; // Remove query params
       }
     }
-    
+
     // Decode URL-encoded filename
     if (fileName.isNotEmpty) {
       try {
@@ -110,23 +110,23 @@ class FilePreview {
         print('   - Could not decode filename: $e');
       }
     }
-    
+
     // Final fallback for filename
     if (fileName.isEmpty) {
       fileName = 'Document';
     }
-    
+
     final fileExtension = _getFileExtension(fileName).toLowerCase();
     final fileType = _getFileType(fileExtension);
     final fileSize = json['size'] is int ? json['size'] as int : 0;
-    
+
     print('   ✅ Parsed file:');
     print('      - Name: "$fileName"');
     print('      - URL: "$fileUrl"');
     print('      - Path: "$filePath"');
     print('      - Type: "$fileType"');
     print('      - Size: $fileSize');
-    
+
     return FilePreview(
       name: fileName,
       size: fileSize,

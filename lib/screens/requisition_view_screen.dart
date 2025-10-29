@@ -10,7 +10,7 @@ import '../models/workflow_template.dart';
 import '../services/requisition_api_service.dart';
 import '../services/workflow_execution_api_service.dart';
 import 'workflow_approver_setup_screen.dart';
-
+import '../services/api_config.dart';
 class RequisitionViewScreen extends StatefulWidget {
   final int requisitionId;
 
@@ -203,7 +203,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
   }
 
   void _handleNavigateToCreateTemplate() {
-    html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/create/';
+    html.window.location.href = '${ApiConfig.djangoBaseUrl}/workflow/templates/create/';
   }
 
   void _showError(String message) {
@@ -240,7 +240,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
               const Text('Requisition data could not be loaded.'),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => html.window.location.href = 'http://127.0.0.1:8000/requisition/',
+                onPressed: () => html.window.location.href = '${ApiConfig.djangoBaseUrl}/requisition/',
                 child: const Text('Back to List'),
               ),
             ],
@@ -289,7 +289,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: () => html.window.location.href = 'http://127.0.0.1:8000/requisition/',
+            onTap: () => html.window.location.href = '${ApiConfig.djangoBaseUrl}/requisition/',
             child: Container(
               width: 40,
               height: 40,
@@ -930,7 +930,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
                         onTap: () {
                           String url = fileUrl;
                           if (!url.startsWith('http')) {
-                            url = 'http://127.0.0.1:8000$url';
+                            url = '${ApiConfig.djangoBaseUrl}$url';
                           }
                           print('📂 Opening document: $url');
                           html.window.open(url, '_blank');
@@ -993,7 +993,7 @@ class _RequisitionViewScreenState extends State<RequisitionViewScreen> {
             InkWell(
               onTap: () {
                 String url = _requisition!.jobDocumentUrl!;
-                if (!url.startsWith('http')) url = 'http://127.0.0.1:8000$url';
+                if (!url.startsWith('http')) url = '${ApiConfig.djangoBaseUrl}$url';
                 html.window.open(url, '_blank');
               },
               child: Text(

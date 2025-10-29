@@ -7,40 +7,40 @@ import '../models/workflow_template.dart';
 import '../models/workflow_node.dart';
 import '../models/workflow_edge.dart';
 import 'auth_service.dart';
-
+import 'api_config.dart';
 
 class WorkflowApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
-  
+  static const String baseUrl = '${ApiConfig.baseUrl}';
+
   final Dio _dio;
   final AuthService _authService;
-  
-  WorkflowApiService({AuthService? authService}) 
+
+  WorkflowApiService({AuthService? authService})
     : _authService = authService ?? AuthService(),
       _dio = Dio() {
     _initializeDio();
   }
 
   void _initializeDio() {
-    _dio.options.baseUrl = 'http://127.0.0.1:8000';
+    _dio.options.baseUrl = '${ApiConfig.djangoBaseUrl}';
     _dio.options.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    
+
     // CRITICAL: Enable credentials for Flutter Web (session cookies)
     _dio.options.extra['withCredentials'] = true;
-    
+
     // Configure browser adapter for web
     final adapter = _dio.httpClientAdapter;
     if (adapter is BrowserHttpClientAdapter) {
       adapter.withCredentials = true;
     }
-    
+
     // Timeouts
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
-    
+
     // Add interceptor to include CSRF token
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -61,7 +61,7 @@ class WorkflowApiService {
         },
       ),
     );
-    
+
     // Logging
     _dio.interceptors.add(
       LogInterceptor(
@@ -78,11 +78,11 @@ class WorkflowApiService {
   /// Load all available workflow stages (PUBLIC - no auth required)
   Future<List<WorkflowStage>> loadStages() async {
     try {
-      final response = await _dio.get('/api/workflow/stages/');
+      final response = await _dio.get('${ApiConfig.baseUrl}/workflow/stages/');
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         List<dynamic> stagesList;
         if (data is List) {
           stagesList = data;
@@ -109,11 +109,11 @@ class WorkflowApiService {
   /// Load all available node types (PUBLIC - no auth required)
   Future<List<DatabaseNode>> loadAvailableNodes() async {
     try {
-      final response = await _dio.get('/api/workflow/nodes/');
+      final response = await _dio.get('${ApiConfig.baseUrl}/workflow/nodes/');
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         List<dynamic> nodesList;
         if (data is List) {
           nodesList = data;
@@ -146,7 +146,7 @@ class WorkflowApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         List<dynamic> constraintsList;
         if (data is List) {
           constraintsList = data;
@@ -182,7 +182,7 @@ class WorkflowApiService {
 
   /// Save workflow template (REQUIRES AUTH)
   Future<Map<String, dynamic>> saveWorkflowTemplate(
-      WorkflowTemplate template) async {
+    WorkflowTemplate template) async {
     try {
       print('💾 Saving workflow template: ${template.name}');
 
@@ -203,13 +203,13 @@ class WorkflowApiService {
       if (template.id != null) {
         // Update existing template
         templateResponse = await _dio.put(
-          '/api/workflow/templates/${template.id}/',
+          '${ApiConfig.baseUrl}/workflow/templates/${template.id}/',
           data: templatePayload,
         );
       } else {
         // Create new template
         templateResponse = await _dio.post(
-          '/api/workflow/templates/',
+          '${ApiConfig.baseUrl}/workflow/templates/',
           data: templatePayload,
         );
       }
@@ -226,41 +226,41 @@ class WorkflowApiService {
       final layoutPayload = {
         'template_metadata': templatePayload['template_metadata'],
         'nodes': template.nodes.map((node) {
-          return {
-            'node': node.data.dbNodeId,
-            'description': node.data.label,
-            'node_instance_id': node.id,
-            'position_x': node.position.dx,
-            'position_y': node.position.dy,
-            'node_order': node.data.stepOrder,
-            'additional_info': {
-              'emp_id': node.data.selectedEmployeeId?.toString() ?? '',
-              'email_id': node.data.employeeEmail ?? '',
-              'username': node.data.username ?? '',
-              'employee_name': node.data.employeeName ?? '',
-              'department_id': node.data.departmentId ?? '',
-              'department_name': node.data.departmentName ?? '',
-              'color': '#${node.data.color.value.toRadixString(16).substring(2)}',
-              'node_type': node.data.nodeType ?? node.type,
-              'outcome': node.data.outcome,
-            }
-          };
-        }).toList(),
+              return {
+                'node': node.data.dbNodeId,
+                'description': node.data.label,
+                'node_instance_id': node.id,
+                'position_x': node.position.dx,
+                'position_y': node.position.dy,
+                'node_order': node.data.stepOrder,
+                'additional_info': {
+                  'emp_id': node.data.selectedEmployeeId?.toString() ?? '',
+                  'email_id': node.data.employeeEmail ?? '',
+                  'username': node.data.username ?? '',
+                  'employee_name': node.data.employeeName ?? '',
+                  'department_id': node.data.departmentId ?? '',
+                  'department_name': node.data.departmentName ?? '',
+                  'color': '#${node.data.color.value.toRadixString(16).substring(2)}',
+                  'node_type': node.data.nodeType ?? node.type,
+                  'outcome': node.data.outcome,
+                }
+              };
+            }).toList(),
         'edges': template.edges.map((edge) {
-          return {
-            'start_node_instance_id': edge.source,
-            'end_node_instance_id': edge.target,
-            'outcome': edge.data?['condition'] ?? edge.label.toLowerCase(),
-            'flow_start': _isFlowStart(edge, template.edges),
-            'flow_end': _isFlowEnd(edge, template.edges),
-            'edge_conditions': edge.data ?? {},
-            'edge_order': edge.order ?? 0,
-          };
-        }).toList(),
+              return {
+                'start_node_instance_id': edge.source,
+                'end_node_instance_id': edge.target,
+                'outcome': edge.data?['condition'] ?? edge.label.toLowerCase(),
+                'flow_start': _isFlowStart(edge, template.edges),
+                'flow_end': _isFlowEnd(edge, template.edges),
+                'edge_conditions': edge.data ?? {},
+                'edge_order': edge.order ?? 0,
+              };
+            }).toList(),
       };
 
       final layoutResponse = await _dio.post(
-        '/api/workflow/templates/${savedTemplate['id']}/save_layout/',
+        '${ApiConfig.baseUrl}/workflow/templates/${savedTemplate['id']}/save_layout/',
         data: layoutPayload,
       );
 
@@ -274,7 +274,7 @@ class WorkflowApiService {
 
       return {
         ...savedTemplate as Map<String, dynamic>,
-        'nodes_created': layoutResult['data']?['nodes_created'] ?? template.nodes.length,
+    'nodes_created': layoutResult['data']?['nodes_created'] ?? template.nodes.length,
         'edges_created': layoutResult['data']?['edges_created'] ?? template.edges.length,
       };
     } catch (e) {
@@ -286,7 +286,7 @@ class WorkflowApiService {
   /// Load workflow template by ID (REQUIRES AUTH)
   Future<WorkflowTemplate> loadWorkflowTemplate(int templateId) async {
     try {
-      final response = await _dio.get('/api/workflow/templates/$templateId/');
+      final response = await _dio.get('${ApiConfig.baseUrl}/workflow/templates/$templateId/');
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -307,15 +307,15 @@ class WorkflowApiService {
       if (stageId != null) {
         queryParams['stage'] = stageId;
       }
-      
+
       final response = await _dio.get(
-        '/api/workflow/templates/',
+        '${ApiConfig.baseUrl}/workflow/templates/',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         List<dynamic> templatesList;
         if (data is List) {
           templatesList = data;
@@ -351,88 +351,88 @@ class WorkflowApiService {
   WorkflowTemplate _convertDbTemplateToUiFormat(Map<String, dynamic> dbTemplate) {
     print('🔍 Converting DB template to UI format...');
     print('   Template: ${dbTemplate['name']}');
-    
+
     // ✅ EXACTLY like React: dbNode.node_details?.type === 'Stop'
     final List<WorkflowNode> uiNodes = (dbTemplate['nodes'] as List?)
-            ?.map((dbNode) {
-              try {
-                // React: dbNode.node_details?.type === 'Stop' ? 'outcome' : 'approval'
-                final nodeDetails = dbNode['node_details'] as Map<String, dynamic>?;
-                final nodeType = (nodeDetails?['type'] == 'Stop') ? 'outcome' : 'approval';
-                
-                // React: dbNode.additional_info?.color || '#3B82F6'
-                final additionalInfo = dbNode['additional_info'] as Map<String, dynamic>?;
-                final colorStr = additionalInfo?['color'] ?? '#3B82F6';
-                
-                return WorkflowNode(
-                  id: dbNode['node_instance_id'] ?? 'node-${dbNode['id']}',
-                  type: nodeType,
-                  position: Offset(
-                    (dbNode['position_x'] ?? 400).toDouble(),
-                    (dbNode['position_y'] ?? 280).toDouble(),
-                  ),
-                  data: WorkflowNodeData(
-                    label: dbNode['description'] ?? '',
-                    title: dbNode['description'] ?? '',
-                    color: Color(int.parse(colorStr.replaceAll('#', '0xFF'))),
-                    stepOrder: dbNode['node_order'] ?? 1,
-                    
-                    // React: dbNodeId: dbNode.node
-                    dbNodeId: dbNode['node'],
-                    
-                    // React: nodeType: dbNode.additional_info?.node_type || dbNode.node_details?.display_name
-                    nodeType: additionalInfo?['node_type'] ?? nodeDetails?['display_name'],
-                    
-                    // Employee details from additional_info
-                    selectedEmployeeId: _parseToInt(additionalInfo?['emp_id']),
-                    employeeEmail: additionalInfo?['email_id'],
-                    username: additionalInfo?['username'],
-                    employeeName: additionalInfo?['employee_name'],
-                    userId: additionalInfo?['emp_id']?.toString(),
-                    departmentId: additionalInfo?['department_id']?.toString(),
-                    departmentName: additionalInfo?['department_name'],
-                    
-                    // React: outcome: dbNode.additional_info?.outcome
-                    outcome: additionalInfo?['outcome'],
-                    comment: additionalInfo?['comment'] ?? '',
-                  ),
-                );
-              } catch (e) {
-                print('❌ Error converting node: $e');
-                print('   Node data: $dbNode');
-                rethrow;
-              }
-            })
-            .toList() ??
+    ?.map((dbNode) {
+          try {
+            // React: dbNode.node_details?.type === 'Stop' ? 'outcome' : 'approval'
+            final nodeDetails = dbNode['node_details'] as Map<String, dynamic>?;
+            final nodeType = (nodeDetails?['type'] == 'Stop') ? 'outcome' : 'approval';
+
+            // React: dbNode.additional_info?.color || '#3B82F6'
+            final additionalInfo = dbNode['additional_info'] as Map<String, dynamic>?;
+            final colorStr = additionalInfo?['color'] ?? '#3B82F6';
+
+            return WorkflowNode(
+              id: dbNode['node_instance_id'] ?? 'node-${dbNode['id']}',
+              type: nodeType,
+              position: Offset(
+                (dbNode['position_x'] ?? 400).toDouble(),
+                (dbNode['position_y'] ?? 280).toDouble(),
+              ),
+              data: WorkflowNodeData(
+                label: dbNode['description'] ?? '',
+                title: dbNode['description'] ?? '',
+                color: Color(int.parse(colorStr.replaceAll('#', '0xFF'))),
+                stepOrder: dbNode['node_order'] ?? 1,
+
+                // React: dbNodeId: dbNode.node
+                dbNodeId: dbNode['node'],
+
+                // React: nodeType: dbNode.additional_info?.node_type || dbNode.node_details?.display_name
+                nodeType: additionalInfo?['node_type'] ?? nodeDetails?['display_name'],
+
+                // Employee details from additional_info
+                selectedEmployeeId: _parseToInt(additionalInfo?['emp_id']),
+                employeeEmail: additionalInfo?['email_id'],
+                username: additionalInfo?['username'],
+                employeeName: additionalInfo?['employee_name'],
+                userId: additionalInfo?['emp_id']?.toString(),
+                departmentId: additionalInfo?['department_id']?.toString(),
+                departmentName: additionalInfo?['department_name'],
+
+                // React: outcome: dbNode.additional_info?.outcome
+                outcome: additionalInfo?['outcome'],
+                comment: additionalInfo?['comment'] ?? '',
+              ),
+            );
+          } catch (e) {
+            print('❌ Error converting node: $e');
+            print('   Node data: $dbNode');
+            rethrow;
+          }
+        })
+        .toList() ??
         [];
 
     // ✅ EXACTLY like React: Convert edges
     final List<WorkflowEdge> uiEdges = (dbTemplate['edges'] as List?)
-            ?.map((dbEdge) {
-              try {
-                // React: source: dbEdge.start_node_details?.node_instance_id
-                final startNodeDetails = dbEdge['start_node_details'] ?? dbEdge['start_node_instance'];
-                final endNodeDetails = dbEdge['end_node_details'] ?? dbEdge['end_node_instance'];
-                
-                return WorkflowEdge(
-                  id: 'edge-${dbEdge['id']}',
-                  source: startNodeDetails['node_instance_id'],
-                  target: endNodeDetails['node_instance_id'],
-                  // React: label: dbEdge.outcome?.charAt(0).toUpperCase() + dbEdge.outcome?.slice(1)
-                  label: _capitalizeFirst(dbEdge['outcome'] ?? 'Approved'),
-                  type: 'straight',
-                  data: dbEdge['edge_conditions'] as Map<String, dynamic>?,
-                  order: dbEdge['edge_order'],
-                  isStart: dbEdge['flow_start'],
-                  isEnd: dbEdge['flow_end'],
-                );
-              } catch (e) {
-                print('❌ Error converting edge: $e');
-                print('   Edge data: $dbEdge');
-                rethrow;
-              }
-            })
-            .toList() ??
+    ?.map((dbEdge) {
+          try {
+            // React: source: dbEdge.start_node_details?.node_instance_id
+            final startNodeDetails = dbEdge['start_node_details'] ?? dbEdge['start_node_instance'];
+            final endNodeDetails = dbEdge['end_node_details'] ?? dbEdge['end_node_instance'];
+
+            return WorkflowEdge(
+              id: 'edge-${dbEdge['id']}',
+              source: startNodeDetails['node_instance_id'],
+              target: endNodeDetails['node_instance_id'],
+              // React: label: dbEdge.outcome?.charAt(0).toUpperCase() + dbEdge.outcome?.slice(1)
+              label: _capitalizeFirst(dbEdge['outcome'] ?? 'Approved'),
+              type: 'straight',
+              data: dbEdge['edge_conditions'] as Map<String, dynamic>?,
+              order: dbEdge['edge_order'],
+              isStart: dbEdge['flow_start'],
+              isEnd: dbEdge['flow_end'],
+            );
+          } catch (e) {
+            print('❌ Error converting edge: $e');
+            print('   Edge data: $dbEdge');
+            rethrow;
+          }
+        })
+        .toList() ??
         [];
 
     print('✅ Converted: ${uiNodes.length} nodes, ${uiEdges.length} edges');

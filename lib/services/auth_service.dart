@@ -1,19 +1,20 @@
 import 'package:dio/dio.dart';
 import 'package:dio/browser.dart';
+import 'api_config.dart';
 
 /// Complete Authentication Service
 /// Handles Django session-based authentication for Flutter Web
 /// Updated to use centralized authentication endpoints
 class AuthService {
   final Dio _dio;
-  
-  static const String djangoBackendUrl = 'http://127.0.0.1:8000';
-  
+
+  static const String djangoBackendUrl = '${ApiConfig.djangoBaseUrl}';
+
   // User data cache
   Map<String, dynamic>? _cachedUserData;
   DateTime? _lastAuthCheck;
   static const Duration _cacheTimeout = Duration(minutes: 5);
-  
+
   // CSRF token cache
   String? _csrfToken;
 
@@ -27,21 +28,21 @@ class AuthService {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    
+
     // CRITICAL: Enable credentials for Flutter Web
     // This allows cookies to be sent with requests
     _dio.options.extra['withCredentials'] = true;
-    
+
     // Configure browser adapter for web
     final adapter = _dio.httpClientAdapter;
     if (adapter is BrowserHttpClientAdapter) {
       adapter.withCredentials = true;
     }
-    
+
     // Timeouts
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
-    
+
     // Logging
     _dio.interceptors.add(
       LogInterceptor(
@@ -58,15 +59,13 @@ class AuthService {
   Future<String?> _fetchCsrfToken() async {
     try {
       print('🔑 Fetching CSRF token from centralized endpoint...');
-      
+
       // Use centralized authentication endpoint
       final response = await _dio.get(
-        '/api/v1/auth/csrf-token/',
-        options: Options(
-          validateStatus: (status) => status! < 500,
-        ),
+        '${ApiConfig.baseUrl}/v1/auth/csrf-token/',
+        options: Options(validateStatus: (status) => status! < 500),
       );
-      
+
       if (response.statusCode == 200) {
         final data = response.data;
         if (data is Map<String, dynamic> && data['csrfToken'] != null) {
@@ -75,19 +74,21 @@ class AuthService {
           return _csrfToken;
         }
       }
-      
+
       // Fallback: Try to extract from response headers
       final cookies = response.headers['set-cookie'];
       if (cookies != null) {
         for (var cookie in cookies) {
           if (cookie.startsWith('csrftoken=')) {
             _csrfToken = cookie.split('=')[1].split(';')[0];
-            print('✅ CSRF token from cookie: ${_csrfToken?.substring(0, 10)}...');
+            print(
+              '✅ CSRF token from cookie: ${_csrfToken?.substring(0, 10)}...',
+            );
             return _csrfToken;
           }
         }
       }
-      
+
       print('⚠️ Could not get CSRF token');
       return null;
     } catch (e) {
@@ -98,10 +99,12 @@ class AuthService {
 
   /// Check if user is authenticated via Django session
   /// Uses centralized authentication endpoint
-  Future<Map<String, dynamic>?> checkAuthentication({bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>?> checkAuthentication({
+    bool forceRefresh = false,
+  }) async {
     // Return cached data if still valid
-    if (!forceRefresh && 
-        _cachedUserData != null && 
+    if (!forceRefresh &&
+        _cachedUserData != null &&
         _lastAuthCheck != null &&
         DateTime.now().difference(_lastAuthCheck!) < _cacheTimeout) {
       print('✅ Using cached auth data');
@@ -110,24 +113,22 @@ class AuthService {
 
     try {
       print('🔐 Checking Django session...');
-      
+
       // Use centralized authentication endpoint
       final response = await _dio.get(
-        '/api/v1/auth/check/',
-        options: Options(
-          validateStatus: (status) => status! < 500,
-        ),
+        '${ApiConfig.baseUrl}/v1/auth/check/',
+        options: Options(validateStatus: (status) => status! < 500),
       );
-      
+
       // Get CSRF token if we don't have it
       if (_csrfToken == null) {
         await _fetchCsrfToken();
       }
-      
+
       // Handle authenticated response (200 OK)
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (data is Map<String, dynamic> && data['authenticated'] == true) {
           // Normalize the data structure
           final user = data['user'] as Map<String, dynamic>?;
@@ -148,7 +149,7 @@ class AuthService {
           }
         }
       }
-      
+
       // Handle not authenticated response (401 Unauthorized)
       if (response.statusCode == 401) {
         final data = response.data;
@@ -156,16 +157,15 @@ class AuthService {
           print('❌ Not authenticated');
         }
       }
-      
+
       // Clear cache if not authenticated
       _cachedUserData = null;
       _lastAuthCheck = null;
       return null;
-      
     } catch (e, stackTrace) {
       print('❌ Auth check error: $e');
       print('Stack: ${stackTrace.toString().split('\n').take(3).join('\n')}');
-      
+
       // Clear cache on error
       _cachedUserData = null;
       _lastAuthCheck = null;
@@ -221,18 +221,16 @@ class AuthService {
     try {
       // Use centralized authentication endpoint
       final response = await _dio.get(
-        '/api/v1/auth/check/',
-        options: Options(
-          validateStatus: (status) => status! < 500,
-        ),
+        '${ApiConfig.baseUrl}/v1/auth/check/',
+        options: Options(validateStatus: (status) => status! < 500),
       );
-      
+
       // 200 OK (authenticated) or 401 Unauthorized (not authenticated) are both valid
       if (response.statusCode == 200 || response.statusCode == 401) {
         print('✅ Backend is reachable');
         return true;
       }
-      
+
       return false;
     } catch (e) {
       print('❌ Connection test failed: $e');
@@ -248,7 +246,8 @@ class AuthService {
       'last_check': _lastAuthCheck?.toIso8601String(),
       'is_authenticated': isAuthenticated,
       'with_credentials': _dio.options.extra['withCredentials'],
-      'csrf_token': _csrfToken != null ? '${_csrfToken?.substring(0, 10)}...' : null,
+      'csrf_token':
+          _csrfToken != null ? '${_csrfToken?.substring(0, 10)}...' : null,
       'user_id': _cachedUserData?['id'],
       'username': _cachedUserData?['username'],
     };

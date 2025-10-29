@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'dart:html' as html;
 import '../models/approval/workflow_step_detail.dart';
 import '../services/workflow_approval_api_service.dart';
-
+import '../services/api_config.dart';
 class ApprovalActionScreen extends StatefulWidget {
   final int stepId;
   final String suggestedAction;
@@ -40,7 +40,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
     super.initState();
     // Don't set default action - user must select one
     _loadWorkflowStep();
-    
+
     // Add listener to comments controller to update button state
     _commentsController.addListener(() {
       setState(() {
@@ -242,7 +242,7 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
 
   void _handleCancel() {
     html.window.location.href =
-        'http://127.0.0.1:8000/workflow/pending-approvals/';
+        '${ApiConfig.djangoBaseUrl}/workflow/pending-approvals/';
   }
 
   @override
@@ -431,90 +431,90 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
     );
   }
 
- Widget _buildRequisitionDetailsCard() {
-  return Card(
-    elevation: 2,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 🔹 Header with gradient
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue[500]!, Colors.blue[600]!],
-            ),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(6),
-              topRight: Radius.circular(6),
-            ),
-          ),
-          child: Text(
-            'Requisition Details - ${_workflowStep?.requisitionId ?? ''}',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-
-        // 🔹 Body content
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // ✅ Combine these three fields in one horizontal line
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildDetailRow(
-                      'Position Requested',
-                      _workflowStep?.jobPosition ?? 'N/A',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDetailRow(
-                      'Department',
-                      _workflowStep?.departmentName ?? 'N/A',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDetailRow(
-                      'Job Description',
-                      _workflowStep?.jobDescription ?? 'N/A',
-                    ),
-                  ),
-                ],
+  Widget _buildRequisitionDetailsCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔹 Header with gradient
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue[500]!, Colors.blue[600]!],
               ),
-
-              const Divider(height: 32),
-
-              // ✅ Specifications section
-              _buildSpecificationsRow(),
-
-              // ✅ Position Details section
-              if (_workflowStep?.positions != null &&
-                  _workflowStep!.positions.isNotEmpty) ...[
-                const Divider(height: 32),
-                ..._workflowStep!.positions.asMap().entries.map((entry) {
-                  return _buildPositionDetailCard(entry.value, entry.key + 1);
-                }).toList(),
-              ],
-            ],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(6),
+                topRight: Radius.circular(6),
+              ),
+            ),
+            child: Text(
+              'Requisition Details - ${_workflowStep?.requisitionId ?? ''}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
 
+          // 🔹 Body content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // ✅ Combine these three fields in one horizontal line
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildDetailRow(
+                        'Position Requested',
+                        _workflowStep?.jobPosition ?? 'N/A',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDetailRow(
+                        'Department',
+                        _workflowStep?.departmentName ?? 'N/A',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDetailRow(
+                        'Job Description',
+                        _workflowStep?.jobDescription ?? 'N/A',
+                      ),
+                    ),
+                  ],
+                ),
 
+                const Divider(height: 32),
+
+                // ✅ Specifications section
+                _buildSpecificationsRow(),
+
+                // ✅ Position Details section
+                if (_workflowStep?.positions != null &&
+                    _workflowStep!.positions.isNotEmpty) ...[
+                  const Divider(height: 32),
+                  ..._workflowStep!.positions.asMap().entries.map((entry) {
+                    return _buildPositionDetailCard(entry.value, entry.key + 1);
+                  }).toList(),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -612,109 +612,109 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
   }
 
   Widget _buildPositionDetailCard(PositionDetail position, int index) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ✅ Section Title (kept)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          color: Colors.blue[50],
-          child: const Center(
-            child: Text(
-              ' Position Details',
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ✅ Section Title (kept)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            color: Colors.blue[50],
+            child: const Center(
+              child: Text(
+                ' Position Details',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            'Position #$index',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold, 
+              fontSize: 16,
+              ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ✅ Position basic info
+          Row(
+            children: [
+              Expanded(
+                child: _buildPositionDetail(
+                  'Quantity',
+                  position.requisitionQuantity.toString(),
+                ),
+              ),
+              Expanded(
+                child: _buildPositionDetail(
+                  'Type',
+                  position.typeRequisitionName ?? 'N/A',
+                ),
+              ),
+              Expanded(
+                child: _buildPositionDetail(
+                  'Employment',
+                  position.employmentTypeName ?? 'N/A',
+                ),
+              ),
+            ],
+          ),
+
+          // ✅ Replacement details
+          if (position.employeeName != null &&
+              position.employeeName!.trim().isNotEmpty) ...[
+            const Divider(height: 24),
+            Text(
+              '🔄 Replacement Employee Details',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.blue,
-                fontSize: 16,
+                color: Colors.blue[700],
+                fontSize: 14,
               ),
             ),
-          ),
-        ),
+            const SizedBox(height: 8),
+            _buildPositionDetail('Employee Name', position.employeeName!),
+            if (position.employeeNo != null)
+              _buildPositionDetail('Employee No', position.employeeNo!),
+            if (position.dateOfResignation != null)
+              _buildPositionDetail(
+                'Resignation Date',
+                _formatDate(position.dateOfResignation!),
+              ),
+          ],
 
-        const SizedBox(height: 12),
-
-        Text(
-          'Position #$index',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // ✅ Position basic info
-        Row(
-          children: [
-            Expanded(
-              child: _buildPositionDetail(
-                'Quantity',
-                position.requisitionQuantity.toString(),
+          // ✅ Justification section
+          if (position.justificationText != null &&
+              position.justificationText!.trim().isNotEmpty) ...[
+            const Divider(height: 24),
+            Text(
+              'Justification',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+                fontSize: 12,
               ),
             ),
-            Expanded(
-              child: _buildPositionDetail(
-                'Type',
-                position.typeRequisitionName ?? 'N/A',
-              ),
-            ),
-            Expanded(
-              child: _buildPositionDetail(
-                'Employment',
-                position.employmentTypeName ?? 'N/A',
-              ),
+            const SizedBox(height: 4),
+            Text(
+              position.justificationText!,
+              style: const TextStyle(fontSize: 14),
             ),
           ],
-        ),
-
-        // ✅ Replacement details
-        if (position.employeeName != null &&
-            position.employeeName!.trim().isNotEmpty) ...[
-          const Divider(height: 24),
-          Text(
-            '🔄 Replacement Employee Details',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.blue[700],
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildPositionDetail('Employee Name', position.employeeName!),
-          if (position.employeeNo != null)
-            _buildPositionDetail('Employee No', position.employeeNo!),
-          if (position.dateOfResignation != null)
-            _buildPositionDetail(
-              'Resignation Date',
-              _formatDate(position.dateOfResignation!),
-            ),
         ],
-
-        // ✅ Justification section
-        if (position.justificationText != null &&
-            position.justificationText!.trim().isNotEmpty) ...[
-          const Divider(height: 24),
-          Text(
-            'Justification',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            position.justificationText!,
-            style: const TextStyle(fontSize: 14),
-          ),
-        ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
   Widget _buildPositionDetail(String label, String value) {
     return Padding(
@@ -1104,9 +1104,9 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
     // 1. Not submitting
     // 2. Action is selected
     // 3. Comments are not empty
-    final isButtonEnabled = !_submitting && 
-                           _selectedAction.isNotEmpty && 
-                           _commentsController.text.trim().isNotEmpty;
+    final isButtonEnabled = !_submitting &&
+        _selectedAction.isNotEmpty &&
+        _commentsController.text.trim().isNotEmpty;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -1145,10 +1145,10 @@ class _ApprovalActionScreenState extends State<ApprovalActionScreen> {
                     ],
                   )
                   : Text(
-                      _selectedAction.isEmpty 
-                          ? 'Select Action First'
-                          : '${selectedOutcome.label} Step',
-                    ),
+                    _selectedAction.isEmpty
+                        ? 'Select Action First'
+                        : '${selectedOutcome.label} Step',
+                  ),
         ),
       ],
     );

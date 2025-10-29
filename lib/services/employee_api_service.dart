@@ -5,39 +5,40 @@ import 'package:dio/dio.dart';
 import 'package:dio/browser.dart';
 import '../widgets/dialogs/node_edit_dialog.dart';
 import 'auth_service.dart';
+import 'api_config.dart';
 
 class EmployeeApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
-  
+  static const String baseUrl = '${ApiConfig.baseUrl}';
+
   final Dio _dio;
   final AuthService _authService;
-  
-  EmployeeApiService({AuthService? authService}) 
+
+  EmployeeApiService({AuthService? authService})
     : _authService = authService ?? AuthService(),
       _dio = Dio() {
     _initializeDio();
   }
 
   void _initializeDio() {
-    _dio.options.baseUrl = 'http://127.0.0.1:8000';
+    _dio.options.baseUrl = '${ApiConfig.djangoBaseUrl}';
     _dio.options.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    
+
     // CRITICAL: Enable credentials for Flutter Web (session cookies)
     _dio.options.extra['withCredentials'] = true;
-    
+
     // Configure browser adapter for web
     final adapter = _dio.httpClientAdapter;
     if (adapter is BrowserHttpClientAdapter) {
       adapter.withCredentials = true;
     }
-    
+
     // Timeouts
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
-    
+
     // Add interceptor to include CSRF token (optional for public endpoint)
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -50,12 +51,14 @@ class EmployeeApiService {
           return handler.next(options);
         },
         onError: (error, handler) {
-          print('❌ Employee API Error: ${error.response?.statusCode} - ${error.message}');
+          print(
+            '❌ Employee API Error: ${error.response?.statusCode} - ${error.message}',
+          );
           return handler.next(error);
         },
       ),
     );
-    
+
     // Logging
     _dio.interceptors.add(
       LogInterceptor(
@@ -69,10 +72,13 @@ class EmployeeApiService {
   }
 
   /// Load employees list from API (PUBLIC - no auth required)
-  Future<List<Employee>> loadEmployees({String? search, String? department}) async {
+  Future<List<Employee>> loadEmployees({
+    String? search,
+    String? department,
+  }) async {
     try {
       print('👥 Loading employees from API...');
-      
+
       final queryParams = <String, dynamic>{};
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
@@ -82,19 +88,19 @@ class EmployeeApiService {
         queryParams['department'] = department;
         print('🏢 Department filter: $department');
       }
-      
+
       final response = await _dio.get(
-        '/api/employees-list/',
+        '${ApiConfig.baseUrl}/employees-list/',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
-      
+
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (data['status'] == 'success' && data['employees'] != null) {
           final List<dynamic> employeesData = data['employees'];
           print('✅ Loaded ${employeesData.length} employees');
-          
+
           return employeesData.map((json) => Employee.fromJson(json)).toList();
         } else {
           throw Exception('Invalid response format');
@@ -108,12 +114,12 @@ class EmployeeApiService {
       return [];
     }
   }
-  
+
   /// Search employees by query (PUBLIC - no auth required)
   Future<List<Employee>> searchEmployees(String query) async {
     return await loadEmployees(search: query);
   }
-  
+
   /// Get employees by department (PUBLIC - no auth required)
   Future<List<Employee>> getEmployeesByDepartment(String departmentId) async {
     return await loadEmployees(department: departmentId);

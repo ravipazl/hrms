@@ -7,7 +7,7 @@ import '../../models/form_builder/form_field.dart' as form_model;
 import '../../services/form_builder_api_service.dart';
 import '../../widgets/form_builder/header/form_header_preview.dart';
 import '../../widgets/form_builder/submission_renderers/submission_field_renderer.dart';
-
+import '../../services/api_config.dart';
 /// Submission View Screen - Renders exactly like form preview but in read-only mode
 /// Uses the same header and field layout as the form builder preview
 class SubmissionViewScreen extends StatefulWidget {
@@ -45,7 +45,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
 
     try {
       final submission = await widget.apiService.getSubmission(widget.submissionId);
-      
+
       if (mounted) {
         setState(() {
           _submission = submission;
@@ -81,17 +81,17 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
                 }
               },
               itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'export',
-                  child: Row(
-                    children: [
-                      Icon(Icons.download),
-                      SizedBox(width: 8),
-                      Text('Export JSON'),
-                    ],
-                  ),
-                ),
-              ],
+                    PopupMenuItem(
+                      value: 'export',
+                      child: Row(
+                        children: [
+                          Icon(Icons.download),
+                          SizedBox(width: 8),
+                          Text('Export JSON'),
+                        ],
+                      ),
+                    ),
+                  ],
             ),
           ],
         ],
@@ -104,7 +104,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(),
-      );
+        );
     }
 
     if (_error != null) {
@@ -148,7 +148,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
 
     // Use template from submission if available, fallback to widget.template
     final template = _submission!.template ?? widget.template;
-    
+
     if (template == null) {
       return const Center(child: Text('Template information not available'));
     }
@@ -165,7 +165,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
         children: [
           // Status Banner
           _buildStatusBanner(),
-          
+
           // Form Header - exactly like preview
           FormHeaderPreview(
             formTitle: formData.formTitle,
@@ -173,7 +173,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
             headerConfig: formData.headerConfig,
             mode: 'view', // Read-only mode
           ),
-          
+
           // Form Fields - same grid layout as preview
           if (formData.fields.isEmpty)
             const Padding(
@@ -190,7 +190,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
               padding: const EdgeInsets.all(16),
               child: _buildGridLayout(formData.fields, _submission!.formData),
             ),
-          
+
           const SizedBox(height: 32),
         ],
       ),
@@ -200,10 +200,10 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
   /// Build status banner at the top
   Widget _buildStatusBanner() {
     if (_submission == null) return const SizedBox.shrink();
-    
+
     Color statusColor;
     IconData statusIcon;
-    
+
     switch (_submission!.status.toLowerCase()) {
       case 'processed':
         statusColor = Colors.green;
@@ -221,14 +221,14 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
         statusColor = Colors.grey;
         statusIcon = Icons.help;
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: statusColor.withOpacity(0.1),
         border: Border(
           bottom: BorderSide(color: statusColor.withOpacity(0.3)),
-        ),
+          ),
       ),
       child: Row(
         children: [
@@ -250,8 +250,8 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
                   'Submitted on ${DateFormat('MMM dd, yyyy - hh:mm a').format(_submission!.submittedAt)}',
                   style: TextStyle(
                     color: Colors.grey.shade700,
-                    fontSize: 12,
-                  ),
+                     fontSize: 12,
+                     ),
                 ),
               ],
             ),
@@ -315,7 +315,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
   Widget _buildRow(List<Widget> fields, int totalWidth) {
     // If row doesn't fill 12 columns, add spacer
     final List<Widget> rowChildren = List.from(fields);
-    
+
     if (totalWidth < 12) {
       rowChildren.add(Expanded(flex: 12 - totalWidth, child: const SizedBox()));
     }
@@ -331,13 +331,13 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
 
   void _downloadPDF() {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('PDF download initiated...')),
-    );
+      );
 
-    final pdfUrl = 'http://127.0.0.1:8000/form-builder/submission/${widget.submissionId}/pdf/view/';
-    
+    final pdfUrl = '${ApiConfig.djangoBaseUrl}/form-builder/submission/${widget.submissionId}/pdf/view/';
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('PDF URL: $pdfUrl'),
@@ -348,10 +348,10 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
 
   void _exportData() {
     if (_submission == null || !mounted) return;
-    
+
     try {
       final json = const JsonEncoder.withIndent('  ').convert(_submission!.toJson());
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('JSON data ready'),
@@ -362,17 +362,17 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Submission JSON'),
-                  content: SingleChildScrollView(
-                    child: SelectableText(json),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
+                      title: const Text('Submission JSON'),
+                      content: SingleChildScrollView(
+                        child: SelectableText(json),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
               );
             },
           ),
@@ -382,7 +382,7 @@ class _SubmissionViewScreenState extends State<SubmissionViewScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+        );
     }
   }
 }

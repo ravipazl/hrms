@@ -7,7 +7,7 @@ import '../providers/workflow_provider.dart';
 import '../models/workflow_template.dart';
 import '../widgets/workflow_canvas.dart';
 import '../widgets/dialogs/node_edit_dialog.dart';
-
+import '../services/api_config.dart';
 class WorkflowCreationScreen extends StatefulWidget {
   final int? templateId;
   final String mode; // 'create', 'edit', 'view'
@@ -30,7 +30,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   // ✅ NEW: Available departments list
   List<Department> _availableDepartments = [];
   bool _loadingDepartments = false;
-  
+
   // ✅ FIX: Local state for dropdown display value
   int? _selectedStageId;
 
@@ -44,23 +44,26 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
 
   Future<void> _initializeWorkflow() async {
     final provider = Provider.of<WorkflowProvider>(context, listen: false);
-    
+
     // Step 1: Initialize workflow data (stages, nodes, employees)
     await provider.initialize();
-    
+
     // Step 2: Load departments
     await _loadDepartments();
-    
+
     // Step 3: ✅ Load existing template if in edit/view mode
-    if (widget.templateId != null && (widget.mode == 'edit' || widget.mode == 'view')) {
-      print('📥 Initializing in ${widget.mode} mode with template ID: ${widget.templateId}');
+    if (widget.templateId != null &&
+        (widget.mode == 'edit' || widget.mode == 'view')) {
+      print(
+        '📥 Initializing in ${widget.mode} mode with template ID: ${widget.templateId}',
+      );
       await provider.loadTemplate(widget.templateId!);
     }
-    
+
     // Step 4: Update text controllers with loaded data
     _nameController.text = provider.template.name;
     _descriptionController.text = provider.template.description;
-    
+
     // ✅ FIX: Initialize local dropdown state
     setState(() {
       _selectedStageId = provider.selectedStage?.id;
@@ -81,27 +84,34 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
       //   name: dept.reference_value,
       //   code: dept.reference_code || dept.reference_value,
       // })) || [];
-      
+
       final response = await http.get(
-        Uri.parse('http://127.0.0.1:8000/api/reference-data/?reference_type=9'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/reference-data/?reference_type=9',
+        ),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         // Parse the 'results' array from response
         final results = data['results'] as List<dynamic>?;
-        
+
         if (results != null && results.isNotEmpty) {
-          _availableDepartments = results.map((dept) {
-            return Department(
-              id: dept['id'] as int,
-              name: dept['reference_value'] as String,
-            );
-          }).toList();
-          
-          print('✅ Loaded ${_availableDepartments.length} departments from API');
-          print('   Departments: ${_availableDepartments.map((d) => d.name).join(", ")}');
+          _availableDepartments =
+              results.map((dept) {
+                return Department(
+                  id: dept['id'] as int,
+                  name: dept['reference_value'] as String,
+                );
+              }).toList();
+
+          print(
+            '✅ Loaded ${_availableDepartments.length} departments from API',
+          );
+          print(
+            '   Departments: ${_availableDepartments.map((d) => d.name).join(", ")}',
+          );
         } else {
           print('⚠️ No departments found in API response');
           _availableDepartments = [];
@@ -112,7 +122,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
       }
     } catch (e) {
       print('❌ Error loading departments: $e');
-      print('   Make sure the API is running at http://127.0.0.1:8000');
+      print('   Make sure the API is running at ${ApiConfig.djangoBaseUrl}');
       _availableDepartments = [];
     } finally {
       setState(() {
@@ -135,23 +145,19 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             children: [
               // Header
               _buildHeader(provider),
-              
+
               // Error banner
               if (provider.error != null) _buildErrorBanner(provider),
-              
-              
-              
+
               // Main content
               Expanded(
                 child: Row(
                   children: [
                     // Left sidebar
                     _buildLeftSidebar(provider),
-                    
+
                     // Canvas area
-                    Expanded(
-                      child: _buildCanvasArea(provider),
-                    ),
+                    Expanded(child: _buildCanvasArea(provider)),
                   ],
                 ),
               ),
@@ -179,8 +185,8 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   widget.mode == 'create'
                       ? 'Create Workflow Template'
                       : widget.mode == 'edit'
-                          ? 'Edit Workflow Template'
-                          : 'View Workflow Template',
+                      ? 'Edit Workflow Template'
+                      : 'View Workflow Template',
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
@@ -210,8 +216,8 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                 provider.saving
                     ? Icons.hourglass_empty
                     : widget.mode == 'edit'
-                        ? Icons.edit
-                        : Icons.save,
+                    ? Icons.edit
+                    : Icons.save,
               ),
               // ✅ Different text for edit mode
               label: Text(
@@ -220,13 +226,16 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                         ? 'Updating...'
                         : 'Saving...'
                     : widget.mode == 'edit'
-                        ? 'Update Template'
-                        : 'Save Template',
+                    ? 'Update Template'
+                    : 'Save Template',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -267,16 +276,22 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
     );
   }
 
-  
   Widget _buildLeftSidebar(WorkflowProvider provider) {
     return Container(
       width: 320,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: const Color.fromARGB(255, 247, 245, 245))),
+        border: Border(
+          right: BorderSide(color: const Color.fromARGB(255, 247, 245, 245)),
+        ),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 10, left: 24, right: 24, bottom: 24),
+        padding: const EdgeInsets.only(
+          top: 10,
+          left: 24,
+          right: 24,
+          bottom: 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -307,7 +322,10 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                 ),
                 hintText: 'e.g., Standard Requisition Approval',
                 hintStyle: TextStyle(color: Colors.grey.shade400),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 filled: true,
                 fillColor: Colors.white,
               ),
@@ -315,7 +333,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
               enabled: widget.mode != 'view',
             ),
             const SizedBox(height: 20),
-            
+
             // Description field
             const Text(
               'Description',
@@ -341,18 +359,23 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.blue, width: 2),
                 ),
-                hintText: 'Describe this requisition approval workflow template',
+                hintText:
+                    'Describe this requisition approval workflow template',
                 hintStyle: TextStyle(color: Colors.grey.shade400),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 filled: true,
                 fillColor: Colors.white,
               ),
               maxLines: 3,
-              onChanged: (value) => provider.updateTemplateInfo(description: value),
+              onChanged:
+                  (value) => provider.updateTemplateInfo(description: value),
               enabled: widget.mode != 'view',
             ),
             const SizedBox(height: 20),
-            
+
             // Workflow Stage dropdown
             const Text(
               'Workflow Stage *',
@@ -364,7 +387,8 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
-              value: _selectedStageId, // ✅ FIX: Use local state instead of provider state
+              value:
+                  _selectedStageId, // ✅ FIX: Use local state instead of provider state
               isExpanded: true,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
@@ -379,53 +403,58 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: Colors.blue, width: 2),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 filled: true,
                 fillColor: Colors.white,
               ),
-              items: provider.availableStages.map((stage) {
-                return DropdownMenuItem<int>(
-                  value: stage.id,
-                  child: Text(
-                    stage.description,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                );
-              }).toList(),
-              onChanged: widget.mode == 'view'
-                  ? null
-                  : (stageId) async {
-                      if (stageId != null) {
-                        // ✅ FIX: Immediately update dropdown display
-                        setState(() {
-                          _selectedStageId = stageId;
-                        });
-                        
-                        final stage = provider.availableStages.firstWhere(
-                          (s) => s.id == stageId,
-                        );
-                        
-                        if (provider.template.nodes.isNotEmpty) {
-                          final confirm = await _showStageChangeWarning();
-                          if (confirm == true) {
-                            // User confirmed - change the stage
-                            await provider.changeStage(stage);
+              items:
+                  provider.availableStages.map((stage) {
+                    return DropdownMenuItem<int>(
+                      value: stage.id,
+                      child: Text(
+                        stage.description,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+              onChanged:
+                  widget.mode == 'view'
+                      ? null
+                      : (stageId) async {
+                        if (stageId != null) {
+                          // ✅ FIX: Immediately update dropdown display
+                          setState(() {
+                            _selectedStageId = stageId;
+                          });
+
+                          final stage = provider.availableStages.firstWhere(
+                            (s) => s.id == stageId,
+                          );
+
+                          if (provider.template.nodes.isNotEmpty) {
+                            final confirm = await _showStageChangeWarning();
+                            if (confirm == true) {
+                              // User confirmed - change the stage
+                              await provider.changeStage(stage);
+                            } else {
+                              // User cancelled - revert dropdown to previous value
+                              setState(() {
+                                _selectedStageId = provider.selectedStage?.id;
+                              });
+                            }
                           } else {
-                            // User cancelled - revert dropdown to previous value
-                            setState(() {
-                              _selectedStageId = provider.selectedStage?.id;
-                            });
+                            // No nodes, change directly
+                            await provider.changeStage(stage);
                           }
-                        } else {
-                          // No nodes, change directly
-                          await provider.changeStage(stage);
                         }
-                      }
-                    },
+                      },
             ),
             const SizedBox(height: 20),
-            
+
             // Department dropdown
             const Text(
               'Department',
@@ -462,7 +491,10 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                   ),
                   hintText: '-- Select Department --',
                   hintStyle: TextStyle(color: Colors.grey.shade400),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                 ),
@@ -487,14 +519,15 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
                     );
                   }).toList(),
                 ],
-                onChanged: widget.mode == 'view'
-                    ? null
-                    : (value) {
-                        provider.updateTemplateInfo(department: value);
-                      },
+                onChanged:
+                    widget.mode == 'view'
+                        ? null
+                        : (value) {
+                          provider.updateTemplateInfo(department: value);
+                        },
               ),
             const SizedBox(height: 32),
-            
+
             // Node Palette
             if (widget.mode != 'view') _buildNodePalette(provider),
           ],
@@ -516,7 +549,7 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         if (provider.stageConstraints.isEmpty)
           const Center(
             child: Padding(
@@ -529,29 +562,33 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           )
         else
           ...provider.stageConstraints.map((constraint) {
-            final existingCount = provider.template.nodes
-                .where((n) => n.data.dbNodeId == constraint.node.id)
-                .length;
+            final existingCount =
+                provider.template.nodes
+                    .where((n) => n.data.dbNodeId == constraint.node.id)
+                    .length;
             final canAdd = existingCount < constraint.maxCount;
-            
+
             // ✅ FIX: Filter out required nodes (min=1, max=1) from palette
             if (constraint.minCount == 1 && constraint.maxCount == 1) {
               return const SizedBox.shrink();
             }
-            
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: canAdd
-                      ? () => provider.addNode(constraint.node)
-                      : null,
+                  onPressed:
+                      canAdd ? () => provider.addNode(constraint.node) : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: canAdd ? const Color(0xFF2563EB) : Colors.grey.shade300,
+                    backgroundColor:
+                        canAdd ? const Color(0xFF2563EB) : Colors.grey.shade300,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -601,7 +638,9 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
             },
             onNodeTap: (nodeId) {
               if (widget.mode != 'view') {
-                final node = provider.template.nodes.firstWhere((n) => n.id == nodeId);
+                final node = provider.template.nodes.firstWhere(
+                  (n) => n.id == nodeId,
+                );
                 // Only show edit dialog for approval nodes, not outcome nodes
                 if (node.type == 'approval') {
                   provider.selectNode(nodeId);
@@ -632,23 +671,25 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
 
   // ✅ Handle cancel button - Navigate to Django templates page (same tab)
   void _handleCancel() {
-    // React code: window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+    // React code: window.location.href = '${ApiConfig.djangoBaseUrl}/workflow/templates/';
     // Flutter web: Use dart:html for same-tab navigation
-    html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+    html.window.location.href =
+        '${ApiConfig.djangoBaseUrl}/workflow/templates/';
   }
 
   // ✅ Handle save template - Show success then navigate to templates page
   Future<void> _saveTemplate(WorkflowProvider provider) async {
     final success = await provider.saveTemplate();
-    
+
     if (success) {
       if (!mounted) return;
-      
+
       // ✅ Different message based on mode
-      final message = widget.mode == 'edit'
-          ? '✅ Workflow template updated successfully!'
-          : '✅ Workflow template created successfully!';
-      
+      final message =
+          widget.mode == 'edit'
+              ? '✅ Workflow template updated successfully!'
+              : '✅ Workflow template created successfully!';
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -657,11 +698,14 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-      
+
       // React code: After save, calls handleClose() → window.location.href
       // Flutter web: Navigate to Django templates page (same tab)
-      await Future.delayed(const Duration(milliseconds: 1000)); // Let user see success message
-      html.window.location.href = 'http://127.0.0.1:8000/workflow/templates/';
+      await Future.delayed(
+        const Duration(milliseconds: 1000),
+      ); // Let user see success message
+      html.window.location.href =
+          '${ApiConfig.djangoBaseUrl}/workflow/templates/';
     }
   }
 
@@ -669,54 +713,56 @@ class _WorkflowCreationScreenState extends State<WorkflowCreationScreen> {
   Future<bool?> _showStageChangeWarning() {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Change Workflow Stage?'),
-          ],
-        ),
-        content: const Text(
-          'You have nodes in your current workflow. Changing the stage will clear all existing nodes and connections.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Change Workflow Stage?'),
+              ],
+            ),
+            content: const Text(
+              'You have nodes in your current workflow. Changing the stage will clear all existing nodes and connections.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Yes, Clear Workflow'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Yes, Clear Workflow'),
-          ),
-        ],
-      ),
     );
   }
 
   void _showNodeEditDialog(WorkflowProvider provider, String nodeId) {
     final node = provider.template.nodes.firstWhere((n) => n.id == nodeId);
-    
+
     // Only show edit dialog for approval nodes, not outcome nodes
     if (node.type != 'approval') return;
 
     showDialog(
       context: context,
-      builder: (context) => NodeEditDialog(
-        node: node,
-        nodeId: nodeId,
-        availableEmployees: provider.availableEmployees,
-        loadingEmployees: provider.loadingEmployees,
-        onUpdateNode: (nodeId, newData) {
-          provider.updateNodeData(nodeId, newData);
-        },
-        onDeleteNode: (nodeId) {
-          if (!node.data.isRequired) {
-            provider.deleteNode(nodeId);
-          }
-        },
-      ),
+      builder:
+          (context) => NodeEditDialog(
+            node: node,
+            nodeId: nodeId,
+            availableEmployees: provider.availableEmployees,
+            loadingEmployees: provider.loadingEmployees,
+            onUpdateNode: (nodeId, newData) {
+              provider.updateNodeData(nodeId, newData);
+            },
+            onDeleteNode: (nodeId) {
+              if (!node.data.isRequired) {
+                provider.deleteNode(nodeId);
+              }
+            },
+          ),
     );
   }
 

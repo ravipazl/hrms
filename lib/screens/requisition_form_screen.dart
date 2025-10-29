@@ -11,7 +11,7 @@ import '../providers/requisition_provider.dart';
 import '../widgets/enhanced_file_upload_widget.dart';
 import '../widgets/multi_file_upload_widget.dart';
 import '../models/file_preview.dart';
-
+import '../services/api_config.dart';
 class RequisitionFormScreen extends StatefulWidget {
   final Requisition? requisition;
 
@@ -284,7 +284,7 @@ class _RequisitionFormScreenState extends State<RequisitionFormScreen> {
   // Navigation helper method
   void _navigateToRequisitionList() {
     
-    html.window.location.href = 'http://127.0.0.1:8000/requisition/';
+    html.window.location.href = '${ApiConfig.djangoBaseUrl}/requisition/';
   }
 
   Widget _buildLogo() {

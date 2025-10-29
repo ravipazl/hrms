@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../models/form_builder/form_field.dart' as form_model;
+import '../../../services/api_config.dart';
 
 /// FIXED: Read-only field renderer for submission view with proper file/signature handling
 class SubmissionFieldRenderer extends StatelessWidget {
@@ -115,7 +116,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
     debugPrint('\n=== RICH TEXT SUBMISSION DATA ===');
     debugPrint('Value type: ${value.runtimeType}');
     debugPrint('Value: $value');
-    
+
     if (value is Map) {
       final map = value as Map<String, dynamic>;
       debugPrint('Map keys: ${map.keys.toList()}');
@@ -130,12 +131,16 @@ class SubmissionFieldRenderer extends StatelessWidget {
         }
       });
     } else if (value is String) {
-      debugPrint('String value (first 200 chars): ${value.toString().substring(0, value.toString().length > 200 ? 200 : value.toString().length)}');
+      debugPrint(
+        'String value (first 200 chars): ${value.toString().substring(0, value.toString().length > 200 ? 200 : value.toString().length)}',
+      );
     }
-    
+
     debugPrint('\nField props keys: ${field.props.keys.toList()}');
     if (field.props.containsKey('content')) {
-      debugPrint('Field has content in props: ${field.props['content'].runtimeType}');
+      debugPrint(
+        'Field has content in props: ${field.props['content'].runtimeType}',
+      );
     }
     if (field.props.containsKey('embeddedFields')) {
       final embedded = field.props['embeddedFields'] as List?;
@@ -149,70 +154,79 @@ class SubmissionFieldRenderer extends StatelessWidget {
       }
     }
     debugPrint('=================================\n');
-    
+
     // NEW FORMAT: Check if value contains Slate structure with embedded values
     if (value is Map) {
       final valueMap = value as Map<String, dynamic>;
-      
+
       // Check if this is the new format with slateContent + embeddedValues
-      if (valueMap.containsKey('slateContent') || valueMap.containsKey('content')) {
+      if (valueMap.containsKey('slateContent') ||
+          valueMap.containsKey('content')) {
         return _buildSlateWithFormatting(valueMap);
       }
-      
+
       // Old format: Try to extract HTML
-      final htmlContent = valueMap['html'] as String? ?? 
-                         valueMap['textContent'] as String? ?? '';
+      final htmlContent =
+          valueMap['html'] as String? ??
+          valueMap['textContent'] as String? ??
+          '';
       if (htmlContent.isNotEmpty) {
         return _buildHtmlContent(htmlContent);
       }
     }
-    
+
     // OLD FORMAT: Direct HTML string
     if (value is String) {
       return _buildHtmlContent(value.toString());
     }
-    
+
     return const Text('No content', style: TextStyle(color: Colors.grey));
   }
-  
+
   // NEW: Render Slate JSON with formatting properties
   Widget _buildSlateWithFormatting(Map<String, dynamic> data) {
     // Get Slate content from field definition (template structure)
-    final slateContent = field.props['content'] as List<dynamic>? ?? 
-                        data['slateContent'] as List<dynamic>? ?? 
-                        data['content'] as List<dynamic>? ?? [];
-    
+    final slateContent =
+        field.props['content'] as List<dynamic>? ??
+        data['slateContent'] as List<dynamic>? ??
+        data['content'] as List<dynamic>? ??
+        [];
+
     // Get embedded field values from submission data - CHECK ALL POSSIBLE KEYS!
-    final embeddedValues = data['embeddedFieldValues'] as Map<String, dynamic>? ??  // ✅ CORRECT KEY!
-                          data['embeddedValues'] as Map<String, dynamic>? ?? 
-                          data['values'] as Map<String, dynamic>? ?? {};
-    
+    final embeddedValues =
+        data['embeddedFieldValues']
+            as Map<String, dynamic>? ?? // ✅ CORRECT KEY!
+        data['embeddedValues'] as Map<String, dynamic>? ??
+        data['values'] as Map<String, dynamic>? ??
+        {};
+
     debugPrint('📋 Slate elements: ${slateContent.length}');
     debugPrint('📋 Embedded field values: $embeddedValues');
-    
+
     if (slateContent.isEmpty) {
       return const Text('No content', style: TextStyle(color: Colors.grey));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: slateContent.map((element) {
-        return _buildSlateElement(
-          element as Map<String, dynamic>, 
-          embeddedValues,
-        );
-      }).toList(),
+      children:
+          slateContent.map((element) {
+            return _buildSlateElement(
+              element as Map<String, dynamic>,
+              embeddedValues,
+            );
+          }).toList(),
     );
   }
-  
+
   Widget _buildSlateElement(
-    Map<String, dynamic> element, 
+    Map<String, dynamic> element,
     Map<String, dynamic> embeddedValues,
   ) {
     final type = element['type'] as String?;
     final children = element['children'] as List<dynamic>? ?? [];
     final align = element['align'] as String?;
-    
+
     final baseStyle = _getSlateTextStyle(type);
 
     // Handle lists
@@ -240,7 +254,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
       ),
     );
   }
-  
+
   List<InlineSpan> _buildSlateTextSpans(
     List<dynamic> children,
     TextStyle baseStyle,
@@ -254,12 +268,9 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
         // Check if text contains embedded field markers
         if (_containsEmbeddedField(text)) {
-          spans.addAll(_parseSlateTextWithFields(
-            text, 
-            child, 
-            baseStyle, 
-            embeddedValues,
-          ));
+          spans.addAll(
+            _parseSlateTextWithFields(text, child, baseStyle, embeddedValues),
+          );
         } else if (text.isNotEmpty) {
           spans.add(_createSlateTextSpan(text, child, baseStyle));
         }
@@ -268,7 +279,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
     return spans;
   }
-  
+
   List<InlineSpan> _parseSlateTextWithFields(
     String text,
     Map<String, dynamic> styling,
@@ -299,23 +310,27 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
         // Show the value if exists, otherwise show placeholder
         if (fieldValue != null && fieldValue.toString().isNotEmpty) {
-          spans.add(TextSpan(
-            text: ' ${fieldValue.toString()} ',
-            style: _applySlateTextStyling(baseStyle, styling).copyWith(
-              backgroundColor: Colors.blue.shade50,
-              fontWeight: FontWeight.w600,
-              color: Colors.blue.shade900,
+          spans.add(
+            TextSpan(
+              text: ' ${fieldValue.toString()} ',
+              style: _applySlateTextStyling(baseStyle, styling).copyWith(
+                backgroundColor: Colors.blue.shade50,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue.shade900,
+              ),
             ),
-          ));
+          );
         } else {
-          spans.add(TextSpan(
-            text: ' [$label] ',
-            style: _applySlateTextStyling(baseStyle, styling).copyWith(
-              color: Colors.grey.shade400,
-              fontStyle: FontStyle.italic,
-              backgroundColor: Colors.grey.shade100,
+          spans.add(
+            TextSpan(
+              text: ' [$label] ',
+              style: _applySlateTextStyling(baseStyle, styling).copyWith(
+                color: Colors.grey.shade400,
+                fontStyle: FontStyle.italic,
+                backgroundColor: Colors.grey.shade100,
+              ),
             ),
-          ));
+          );
         }
       } else {
         spans.add(_createSlateTextSpan('[${label}]', styling, baseStyle));
@@ -334,9 +349,10 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
     return spans;
   }
-  
+
   Map<String, dynamic>? _findEmbeddedFieldByLabel(String label) {
-    final embeddedFields = field.props['embeddedFields'] as List<dynamic>? ?? [];
+    final embeddedFields =
+        field.props['embeddedFields'] as List<dynamic>? ?? [];
     for (var field in embeddedFields) {
       if (field is Map && field['label'] == label) {
         return Map<String, dynamic>.from(field);
@@ -344,7 +360,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
     }
     return null;
   }
-  
+
   Widget _buildSlateList(
     String? type,
     List<dynamic> children,
@@ -352,20 +368,21 @@ class SubmissionFieldRenderer extends StatelessWidget {
     Map<String, dynamic> embeddedValues,
   ) {
     final isNumbered = type == 'numbered-list';
-    
+
     return Padding(
       padding: const EdgeInsets.only(left: 20, bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            isNumbered ? '1. ' : '• ',
-            style: baseStyle,
-          ),
+          Text(isNumbered ? '1. ' : '• ', style: baseStyle),
           Expanded(
             child: SelectableText.rich(
               TextSpan(
-                children: _buildSlateTextSpans(children, baseStyle, embeddedValues),
+                children: _buildSlateTextSpans(
+                  children,
+                  baseStyle,
+                  embeddedValues,
+                ),
               ),
             ),
           ),
@@ -373,7 +390,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
       ),
     );
   }
-  
+
   TextSpan _createSlateTextSpan(
     String text,
     Map<String, dynamic> styling,
@@ -384,10 +401,10 @@ class SubmissionFieldRenderer extends StatelessWidget {
       style: _applySlateTextStyling(baseStyle, styling),
     );
   }
-  
+
   TextStyle _getSlateTextStyle(String? type) {
     debugPrint('🎨 Getting style for type: "$type"');
-    
+
     switch (type) {
       case 'heading-one':
       case 'heading-1':
@@ -447,13 +464,16 @@ class SubmissionFieldRenderer extends StatelessWidget {
         );
     }
   }
-  
+
   bool _containsEmbeddedField(String text) {
     final emojiPattern = RegExp(r'[📝🔢📧📅📋☑️🔘📄📌]\s*\[.*?\]');
     return emojiPattern.hasMatch(text);
   }
-  
-  TextStyle _applySlateTextStyling(TextStyle baseStyle, Map<String, dynamic> styling) {
+
+  TextStyle _applySlateTextStyling(
+    TextStyle baseStyle,
+    Map<String, dynamic> styling,
+  ) {
     TextStyle style = baseStyle;
 
     if (styling['bold'] == true) {
@@ -464,16 +484,24 @@ class SubmissionFieldRenderer extends StatelessWidget {
     }
     if (styling['underline'] == true) {
       style = style.copyWith(
-        decoration: style.decoration != null
-            ? TextDecoration.combine([style.decoration!, TextDecoration.underline])
-            : TextDecoration.underline,
+        decoration:
+            style.decoration != null
+                ? TextDecoration.combine([
+                  style.decoration!,
+                  TextDecoration.underline,
+                ])
+                : TextDecoration.underline,
       );
     }
     if (styling['strikethrough'] == true || styling['strike'] == true) {
       style = style.copyWith(
-        decoration: style.decoration != null
-            ? TextDecoration.combine([style.decoration!, TextDecoration.lineThrough])
-            : TextDecoration.lineThrough,
+        decoration:
+            style.decoration != null
+                ? TextDecoration.combine([
+                  style.decoration!,
+                  TextDecoration.lineThrough,
+                ])
+                : TextDecoration.lineThrough,
       );
     }
     if (styling['code'] == true) {
@@ -485,7 +513,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
     return style;
   }
-  
+
   // Render HTML content (for old submissions)
   Widget _buildHtmlContent(String htmlContent) {
     return Html(
@@ -497,9 +525,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
           fontSize: FontSize(15),
           lineHeight: const LineHeight(1.5),
         ),
-        "p": Style(
-          margin: Margins.only(bottom: 8),
-        ),
+        "p": Style(margin: Margins.only(bottom: 8)),
         "h1": Style(
           fontSize: FontSize(24),
           fontWeight: FontWeight.bold,
@@ -515,27 +541,13 @@ class SubmissionFieldRenderer extends StatelessWidget {
           fontWeight: FontWeight.bold,
           margin: Margins.only(bottom: 8, top: 6),
         ),
-        "strong": Style(
-          fontWeight: FontWeight.bold,
-        ),
-        "b": Style(
-          fontWeight: FontWeight.bold,
-        ),
-        "em": Style(
-          fontStyle: FontStyle.italic,
-        ),
-        "i": Style(
-          fontStyle: FontStyle.italic,
-        ),
-        "u": Style(
-          textDecoration: TextDecoration.underline,
-        ),
-        "s": Style(
-          textDecoration: TextDecoration.lineThrough,
-        ),
-        "strike": Style(
-          textDecoration: TextDecoration.lineThrough,
-        ),
+        "strong": Style(fontWeight: FontWeight.bold),
+        "b": Style(fontWeight: FontWeight.bold),
+        "em": Style(fontStyle: FontStyle.italic),
+        "i": Style(fontStyle: FontStyle.italic),
+        "u": Style(textDecoration: TextDecoration.underline),
+        "s": Style(textDecoration: TextDecoration.lineThrough),
+        "strike": Style(textDecoration: TextDecoration.lineThrough),
         "ul": Style(
           margin: Margins.only(left: 20, bottom: 8),
           padding: HtmlPaddings.only(left: 20),
@@ -544,18 +556,12 @@ class SubmissionFieldRenderer extends StatelessWidget {
           margin: Margins.only(left: 20, bottom: 8),
           padding: HtmlPaddings.only(left: 20),
         ),
-        "li": Style(
-          margin: Margins.only(bottom: 4),
-          display: Display.listItem,
-        ),
+        "li": Style(margin: Margins.only(bottom: 4), display: Display.listItem),
         "blockquote": Style(
           margin: Margins.only(left: 20, top: 8, bottom: 8),
           padding: HtmlPaddings.only(left: 12),
           border: Border(
-            left: BorderSide(
-              color: Colors.grey.shade400,
-              width: 4,
-            ),
+            left: BorderSide(color: Colors.grey.shade400, width: 4),
           ),
           backgroundColor: Colors.grey.shade50,
         ),
@@ -576,7 +582,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
   Widget _buildTableValue() {
     if (value is! List) return _buildTextValue();
-    
+
     final List<dynamic> rows = value;
     if (rows.isEmpty) {
       return Container(
@@ -602,112 +608,201 @@ class SubmissionFieldRenderer extends StatelessWidget {
       if (row is Map) {
         final rowData = row['data'] as Map<String, dynamic>? ?? row;
         if (rowData is Map) {
-          allColumns.addAll((rowData as Map<String, dynamic>).keys.cast<String>());
+          allColumns.addAll(
+            (rowData as Map<String, dynamic>).keys.cast<String>(),
+          );
         }
       }
     }
-    
+
     final columnsList = allColumns.toList();
     final tableColumns = _getTableColumnsFromField();
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.table_chart, 
-                  size: 16, 
-                  color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  '${rows.length} row(s) × ${columnsList.length} column(s)',
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate equal width for each column
+        final availableWidth = constraints.maxWidth - 70;
+        final columnWidth = availableWidth / columnsList.length;
+
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
-              columnSpacing: 24,
-              columns: [
-                const DataColumn(
-                  label: Text(
-                    '#',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header banner
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
                   ),
                 ),
-                ...columnsList.map(
-                  (column) => DataColumn(
-                    label: Text(
-                      tableColumns[column] ?? _formatColumnName(column),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.table_chart,
+                      size: 16,
+                      color: Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${rows.length} row(s) × ${columnsList.length} column(s)',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
                         fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              rows: rows.asMap().entries.map((entry) {
-                final index = entry.key;
-                final row = entry.value;
-                Map<String, dynamic> rowData = {};
-                
-                if (row is Map) {
-                  final data = row['data'];
-                  rowData = Map<String, dynamic>.from(data is Map ? data : row);
-                }
-                
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    ...columnsList.map(
-                      (column) => DataCell(
-                        Container(
-                          constraints: const BoxConstraints(maxWidth: 200),
-                          child: Text(
-                            rowData[column]?.toString() ?? '-',
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                );
-              }).toList(),
-            ),
+                ),
+              ),
+              // Custom Table
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Container(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: Column(
+                    children: [
+                      // Header row
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // # column
+                            Container(
+                              width: 60,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 8,
+                              ),
+                              child: const Text(
+                                '#',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            // Data columns
+                            ...columnsList.map(
+                              (column) => Container(
+                                width: columnWidth,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  tableColumns[column] ??
+                                      _formatColumnName(column),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Data rows
+                      ...rows.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final row = entry.value;
+                        Map<String, dynamic> rowData = {};
+
+                        if (row is Map) {
+                          final data = row['data'];
+                          rowData = Map<String, dynamic>.from(
+                            data is Map ? data : row,
+                          );
+                        }
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color:
+                                index.isEven
+                                    ? Colors.white
+                                    : Colors.grey.shade50,
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // # cell
+                              Container(
+                                width: 60,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 8,
+                                ),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              // Data cells
+                              ...columnsList.map(
+                                (column) => Container(
+                                  width: columnWidth,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    rowData[column]?.toString() ?? '-',
+                                    style: const TextStyle(fontSize: 13),
+                                    softWrap: true,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -739,16 +834,20 @@ class SubmissionFieldRenderer extends StatelessWidget {
     String formatted = columnName
         .replaceFirst(RegExp(r'^field_'), '')
         .replaceFirst(RegExp(r'^col_'), '');
-    formatted = formatted
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    formatted =
+        formatted
+            .replaceAll('_', ' ')
+            .replaceAll('-', ' ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
     return formatted
         .split(' ')
-        .map((word) => word.isEmpty
-            ? ''
-            : word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .map(
+          (word) =>
+              word.isEmpty
+                  ? ''
+                  : word[0].toUpperCase() + word.substring(1).toLowerCase(),
+        )
         .join(' ');
   }
 
@@ -769,10 +868,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
             size: 24,
           ),
           const SizedBox(width: 12),
-          Text(
-            isChecked ? 'Yes' : 'No',
-            style: const TextStyle(fontSize: 15),
-          ),
+          Text(isChecked ? 'Yes' : 'No', style: const TextStyle(fontSize: 15)),
         ],
       ),
     );
@@ -790,15 +886,16 @@ class SubmissionFieldRenderer extends StatelessWidget {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: items
-            .map(
-              (item) => Chip(
-                label: Text(item.toString()),
-                backgroundColor: Colors.blue.shade50,
-                side: BorderSide(color: Colors.blue.shade200),
-              ),
-            )
-            .toList(),
+        children:
+            items
+                .map(
+                  (item) => Chip(
+                    label: Text(item.toString()),
+                    backgroundColor: Colors.blue.shade50,
+                    side: BorderSide(color: Colors.blue.shade200),
+                  ),
+                )
+                .toList(),
       ),
     );
   }
@@ -812,10 +909,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade300),
       ),
-      child: Text(
-        value.toString(),
-        style: const TextStyle(fontSize: 15),
-      ),
+      child: Text(value.toString(), style: const TextStyle(fontSize: 15)),
     );
   }
 
@@ -823,18 +917,20 @@ class SubmissionFieldRenderer extends StatelessWidget {
   Widget _buildFileValue(BuildContext context) {
     debugPrint('📎 File Value Type: ${value.runtimeType}');
     debugPrint('📎 File Value: $value');
-    
+
     List<dynamic> files = [];
-    
+
     if (value is List) {
       files = value;
     } else if (value is String) {
       // Handle single file as string (filename or file reference)
-      files = [{'filename': value, 'originalName': value}];
+      files = [
+        {'filename': value, 'originalName': value},
+      ];
     } else if (value is Map) {
       files = [value];
     }
-    
+
     if (files.isEmpty) {
       return Container(
         width: double.infinity,
@@ -853,7 +949,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
         ),
       );
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -883,27 +979,31 @@ class SubmissionFieldRenderer extends StatelessWidget {
             String fileName = 'Unknown file';
             String? fileSize;
             String? fileUrl;
-            
+
             if (file is Map) {
-              fileName = file['originalName']?.toString() ??
+              fileName =
+                  file['originalName']?.toString() ??
                   file['filename']?.toString() ??
                   file['name']?.toString() ??
                   'Unknown file';
               fileSize = file['size']?.toString();
-              fileUrl = file['url']?.toString() ??
+              fileUrl =
+                  file['url']?.toString() ??
                   file['fileUrl']?.toString() ??
                   file['path']?.toString();
-              
+
               // Construct file URL if we only have filename
               if (fileUrl == null && file['filename'] != null) {
-                fileUrl = 'http://127.0.0.1:8000/media/form_builder_uploads/${file['filename']}';
+                fileUrl =
+                    '${ApiConfig.djangoBaseUrl}/media/form_builder_uploads/${file['filename']}';
               }
             } else if (file is String) {
               fileName = file;
               // Construct file URL from filename
-              fileUrl = 'http://127.0.0.1:8000/media/form_builder_uploads/$file';
+              fileUrl =
+                  '${ApiConfig.djangoBaseUrl}/media/form_builder_uploads/$file';
             }
-            
+
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(8),
@@ -955,7 +1055,8 @@ class SubmissionFieldRenderer extends StatelessWidget {
                         size: 20,
                       ),
                       tooltip: 'Download file',
-                      onPressed: () => _downloadFile(context, fileUrl!, fileName),
+                      onPressed:
+                          () => _downloadFile(context, fileUrl!, fileName),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
                         minWidth: 36,
@@ -998,7 +1099,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
 
   void _downloadFile(BuildContext context, String url, String fileName) {
     debugPrint('📥 Downloading file: $url');
-    
+
     // Show snackbar with download link
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1036,40 +1137,45 @@ class SubmissionFieldRenderer extends StatelessWidget {
   Widget _buildSignatureValue() {
     debugPrint('🖊️ === SIGNATURE RENDERER ===');
     debugPrint('🖊️ Value type: ${value.runtimeType}');
-    debugPrint('🖊️ Value preview: ${value.toString().substring(0, value.toString().length > 100 ? 100 : value.toString().length)}...');
-    
+    debugPrint(
+      '🖊️ Value preview: ${value.toString().substring(0, value.toString().length > 100 ? 100 : value.toString().length)}...',
+    );
+
     String? signatureData;
     String? signatureId;
     String? fileUrl;
-    
+
     // Parse signature value from different formats
     if (value is Map) {
       final signatureMap = value as Map<String, dynamic>;
-      signatureData = signatureMap['signature'] as String? ?? 
-                      signatureMap['data'] as String? ?? 
-                      signatureMap['base64'] as String?;
-      signatureId = signatureMap['id'] as String? ?? 
-                    signatureMap['signatureId'] as String? ??
-                    signatureMap['fileId'] as String?;
-      fileUrl = signatureMap['url'] as String? ?? 
-                signatureMap['fileUrl'] as String?;
+      signatureData =
+          signatureMap['signature'] as String? ??
+          signatureMap['data'] as String? ??
+          signatureMap['base64'] as String?;
+      signatureId =
+          signatureMap['id'] as String? ??
+          signatureMap['signatureId'] as String? ??
+          signatureMap['fileId'] as String?;
+      fileUrl =
+          signatureMap['url'] as String? ?? signatureMap['fileUrl'] as String?;
     } else if (value is String) {
       final stringValue = value as String;
-      
+
       // Check if it's a file reference (signature_XXXXX format)
       if (stringValue.startsWith('signature_')) {
         signatureId = stringValue;
         // Construct file URL from backend
-        fileUrl = 'http://127.0.0.1:8000/media/form_builder_uploads/$stringValue';
+        fileUrl =
+            '${ApiConfig.djangoBaseUrl}/media/form_builder_uploads/$stringValue';
         debugPrint('🖊️ File reference detected, URL: $fileUrl');
       }
       // Check if it's a relative path starting with /media/
       else if (stringValue.startsWith('/media/')) {
         signatureId = stringValue.split('/').last;
         // Already a path, just prepend domain
-        fileUrl = 'http://127.0.0.1:8000$stringValue';
+        fileUrl = '${ApiConfig.djangoBaseUrl}$stringValue';
         debugPrint('🖊️ Relative path detected, URL: $fileUrl');
-      } 
+      }
       // Check if it's a data URL
       else if (stringValue.startsWith('data:image/')) {
         signatureData = stringValue;
@@ -1081,15 +1187,18 @@ class SubmissionFieldRenderer extends StatelessWidget {
       // Otherwise treat as file reference
       else {
         signatureId = stringValue;
-        fileUrl = 'http://127.0.0.1:8000/media/form_builder_uploads/$stringValue';
+        fileUrl =
+            '${ApiConfig.djangoBaseUrl}/media/form_builder_uploads/$stringValue';
       }
     }
-    
+
     debugPrint('🖊️ Signature render decision:');
     debugPrint('  - fileUrl: $fileUrl');
-    debugPrint('  - signatureData: ${signatureData != null ? "present (${signatureData!.length} chars)" : "null"}');
+    debugPrint(
+      '  - signatureData: ${signatureData != null ? "present (${signatureData!.length} chars)" : "null"}',
+    );
     debugPrint('  - signatureId: $signatureId');
-    
+
     // CASE 1: We have a file URL - show image from network
     if (fileUrl != null) {
       debugPrint('🌐 Using network image from URL: $fileUrl');
@@ -1146,7 +1255,9 @@ class SubmissionFieldRenderer extends StatelessWidget {
                       fileUrl,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
-                        debugPrint('🖊️ Error loading signature from URL: $error');
+                        debugPrint(
+                          '🖊️ Error loading signature from URL: $error',
+                        );
                         return Container(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -1184,10 +1295,11 @@ class SubmissionFieldRenderer extends StatelessWidget {
                         if (loadingProgress == null) return child;
                         return Center(
                           child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
+                            value:
+                                loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
                           ),
                         );
                       },
@@ -1233,11 +1345,11 @@ class SubmissionFieldRenderer extends StatelessWidget {
         ),
       );
     }
-    
+
     // CASE 2: We have base64/data URL - decode and show
     if (signatureData != null) {
       bool isDataUrl = signatureData.startsWith('data:image/');
-      
+
       try {
         Uint8List imageBytes;
         if (isDataUrl) {
@@ -1249,7 +1361,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
         } else {
           imageBytes = base64Decode(signatureData);
         }
-        
+
         return Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -1286,7 +1398,10 @@ class SubmissionFieldRenderer extends StatelessWidget {
               ),
               Container(
                 width: double.infinity,
-                constraints: const BoxConstraints(maxHeight: 250, minHeight: 120),
+                constraints: const BoxConstraints(
+                  maxHeight: 250,
+                  minHeight: 120,
+                ),
                 padding: const EdgeInsets.all(16),
                 child: Center(
                   child: Container(
@@ -1296,16 +1411,16 @@ class SubmissionFieldRenderer extends StatelessWidget {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.memory(
-                        imageBytes,
-                        fit: BoxFit.contain,
-                      ),
+                      child: Image.memory(imageBytes, fit: BoxFit.contain),
                     ),
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
                   borderRadius: const BorderRadius.only(
@@ -1364,17 +1479,14 @@ class SubmissionFieldRenderer extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Could not decode signature: ${e.toString()}',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
               ),
             ],
           ),
         );
       }
     }
-    
+
     // CASE 3: No signature data
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1428,10 +1540,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.shade300),
       ),
-      child: Text(
-        value.toString(),
-        style: const TextStyle(fontSize: 15),
-      ),
+      child: Text(value.toString(), style: const TextStyle(fontSize: 15)),
     );
   }
 
@@ -1448,12 +1557,7 @@ class SubmissionFieldRenderer extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: Colors.blue.shade700),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 15),
-            ),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
         ],
       ),
     );

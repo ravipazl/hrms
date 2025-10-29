@@ -1,7 +1,7 @@
 // lib/models/requisition/requisition.dart
 
 import 'dart:convert';
-
+import '../services/api_config.dart';
 /// Main Requisition Model
 class Requisition {
   final int? id;
@@ -79,20 +79,20 @@ class Requisition {
   /// Extract essential skills from skills array
   static String _extractEssentialSkills(List<dynamic> skills) {
     final essentialSkills = skills
-        .where((skill) => skill['skill_type'] == 'essential')
-        .map((skill) => skill['skill']?.toString() ?? '')
-        .where((skill) => skill.isNotEmpty)
-        .toList();
+            .where((skill) => skill['skill_type'] == 'essential')
+            .map((skill) => skill['skill']?.toString() ?? '')
+            .where((skill) => skill.isNotEmpty)
+            .toList();
     return essentialSkills.join(', ');
   }
 
   /// Extract desired skills from skills array
   static String? _extractDesiredSkills(List<dynamic> skills) {
     final desiredSkills = skills
-        .where((skill) => skill['skill_type'] == 'desired')
-        .map((skill) => skill['skill']?.toString() ?? '')
-        .where((skill) => skill.isNotEmpty)
-        .toList();
+            .where((skill) => skill['skill_type'] == 'desired')
+            .map((skill) => skill['skill']?.toString() ?? '')
+            .where((skill) => skill.isNotEmpty)
+            .toList();
     return desiredSkills.isNotEmpty ? desiredSkills.join(', ') : null;
   }
 
@@ -101,12 +101,12 @@ class Requisition {
     if (urlOrPath == null || urlOrPath.isEmpty) {
       return null;
     }
-    
+
     if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
       return urlOrPath;
     }
-    
-    const String baseUrl = 'http://127.0.0.1:8000';
+
+    const String baseUrl = '${ApiConfig.djangoBaseUrl}';
     String path = urlOrPath.startsWith('/') ? urlOrPath : '/$urlOrPath';
     final completeUrl = '$baseUrl$path';
     print('🔗 Constructed complete URL: $completeUrl (from: $urlOrPath)');
@@ -115,35 +115,35 @@ class Requisition {
 
   factory Requisition.fromJson(Map<String, dynamic> json) {
     print('📝 Parsing requisition from Django API response...');
-    
+
     List<Map<String, dynamic>>? documentsData;
     if (json['job_documents'] != null) {
       if (json['job_documents'] is List) {
         documentsData = (json['job_documents'] as List)
-            .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
-            .where((doc) => doc.isNotEmpty)
-            .toList();
+                .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+                .where((doc) => doc.isNotEmpty)
+                .toList();
       } else if (json['job_documents'] is String) {
         try {
           final parsed = jsonDecode(json['job_documents']);
           if (parsed is List) {
             documentsData = (parsed as List)
-                .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
-                .where((doc) => doc.isNotEmpty)
-                .toList();
+                    .map((doc) => doc is Map<String, dynamic> ? doc : <String, dynamic>{})
+                    .where((doc) => doc.isNotEmpty)
+                    .toList();
           }
         } catch (e) {
           print('⚠️ Could not parse job_documents JSON: $e');
         }
       }
     }
-    
+
     final skillsData = json['skills'] as List? ?? [];
     final essentialSkills = _extractEssentialSkills(skillsData);
     final desiredSkills = _extractDesiredSkills(skillsData);
-    
+
     final positionsData = json['positions'] as List? ?? [];
-    
+
     final requisition = Requisition(
       id: json['id'],
       requisitionId: json['requisition_id'],
@@ -165,20 +165,20 @@ class Requisition {
       desiredSkills: desiredSkills,
       status: _extractStatus(json['status']),
       positions: positionsData
-          .map((pos) => RequisitionPosition.fromJson(pos))
-          .toList(),
+              .map((pos) => RequisitionPosition.fromJson(pos))
+              .toList(),
       skills: skillsData
           .map((skill) => RequisitionSkill.fromJson(skill))
           .toList(),
       mentionThreeMonths: _parseMapField(json['mentionThreeMonths'] ?? json['phased_months']),
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       updatedAt: json['modified_at'] != null
-          ? DateTime.parse(json['modified_at'])
-          : json['updated_at'] != null
+              ? DateTime.parse(json['modified_at'])
+              : json['updated_at'] != null
               ? DateTime.parse(json['updated_at'])
               : null,
     );
-    
+
     return requisition;
   }
 
@@ -197,9 +197,9 @@ class Requisition {
       'desired_skills': desiredSkills,
       'mentionThreeMonths': mentionThreeMonths ?? {
         'month1': '',
-        'month2': '',
+        'month2': '', 
         'month3': ''
-      },
+        },
       'skills': skills.map((skill) => skill.toJson()).toList(),
       'positions': positions.map((pos) => pos.toJson()).toList(),
     };
@@ -381,10 +381,10 @@ class RequisitionSkill {
   final String skillType; // 'essential' or 'desired'
 
   RequisitionSkill({
-    this.id,
-    required this.skill,
+    this.id, 
+    required this.skill, 
     required this.skillType,
-  });
+    });
 
   factory RequisitionSkill.fromJson(Map<String, dynamic> json) {
     return RequisitionSkill(
@@ -398,7 +398,7 @@ class RequisitionSkill {
     return {
       'skill': skill,
       'skill_type': skillType,
-    };
+       };
   }
 }
 
@@ -438,7 +438,7 @@ class RequisitionStatus {
   static const String approved = 'approved';
   static const String rejected = 'rejected';
   static const String hold = 'hold';
-  
+
   static String getDisplayText(String status) {
     switch (status.toLowerCase()) {
       case pending:

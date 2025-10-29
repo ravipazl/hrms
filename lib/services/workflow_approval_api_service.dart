@@ -5,41 +5,41 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:dio/browser.dart';
-import '../models/approval/workflow_step_detail.dart';  // ActionOutcome is here
+import '../models/approval/workflow_step_detail.dart'; // ActionOutcome is here
 import 'auth_service.dart';
-
+import 'api_config.dart';
 class WorkflowApprovalApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
-  
+  static const String baseUrl = '${ApiConfig.baseUrl}';
+
   final Dio _dio;
   final AuthService _authService;
-  
-  WorkflowApprovalApiService({AuthService? authService}) 
+
+  WorkflowApprovalApiService({AuthService? authService})
     : _authService = authService ?? AuthService(),
       _dio = Dio() {
     _initializeDio();
   }
 
   void _initializeDio() {
-    _dio.options.baseUrl = 'http://127.0.0.1:8000';
+    _dio.options.baseUrl = '${ApiConfig.djangoBaseUrl}';
     _dio.options.headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-    
+
     // CRITICAL: Enable credentials for Flutter Web (session cookies)
     _dio.options.extra['withCredentials'] = true;
-    
+
     // Configure browser adapter for web
     final adapter = _dio.httpClientAdapter;
     if (adapter is BrowserHttpClientAdapter) {
       adapter.withCredentials = true;
     }
-    
+
     // Timeouts
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
-    
+
     // Add interceptor to include CSRF token
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -60,7 +60,7 @@ class WorkflowApprovalApiService {
         },
       ),
     );
-    
+
     // Logging
     _dio.interceptors.add(
       LogInterceptor(
@@ -77,8 +77,8 @@ class WorkflowApprovalApiService {
   Future<WorkflowStepDetail> getWorkflowStep(int stepId) async {
     try {
       print('🔍 Loading workflow step: $stepId');
-      
-      final response = await _dio.get('/api/workflow/workflow-steps/$stepId/');
+
+      final response = await _dio.get('${ApiConfig.baseUrl}/workflow/workflow-steps/$stepId/');
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -97,15 +97,15 @@ class WorkflowApprovalApiService {
   Future<List<ActionOutcome>> getAvailableOutcomes(int templateId, int currentNodeId) async {
     try {
       print('🔍 Loading available outcomes for template: $templateId, node: $currentNodeId');
-      
+
       final response = await _dio.get(
-        '/api/workflow/workflow-edges/',
+        '${ApiConfig.baseUrl}/workflow/workflow-edges/',
         queryParameters: {'template': templateId},
       );
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         // Extract edges list
         List<dynamic> edges;
         if (data is List) {
@@ -119,9 +119,9 @@ class WorkflowApprovalApiService {
         }
 
         // Filter edges from current node
-        final nodeEdges = edges.where((edge) => 
-          edge['start_node_instance'] == currentNodeId
-        ).toList();
+        final nodeEdges = edges.where((edge) =>
+         edge['start_node_instance'] == currentNodeId
+         ).toList();
 
         print('🔗 Found ${nodeEdges.length} edges from current node');
 
@@ -152,7 +152,7 @@ class WorkflowApprovalApiService {
       return _getDefaultOutcomes();
     }
   }
-  
+
   /// Helper: Map outcome string to ActionOutcome
   ActionOutcome _mapOutcomeToAction(String outcome) {
     switch (outcome.toLowerCase()) {
@@ -186,7 +186,7 @@ class WorkflowApprovalApiService {
         );
     }
   }
-  
+
   /// Helper: Get default outcomes
   List<ActionOutcome> _getDefaultOutcomes() {
     return [
@@ -230,13 +230,13 @@ class WorkflowApprovalApiService {
         'outcome': outcome.toLowerCase(),
         'comments': comments,
       };
-      
+
       if (approvedPositions != null && approvedPositions.isNotEmpty) {
         payload['approved_positions'] = approvedPositions;
       }
 
       final response = await _dio.post(
-        '/api/workflow/workflow-steps/$stepId/update_status/',
+        '${ApiConfig.baseUrl}/workflow/workflow-steps/$stepId/update_status/',
         data: payload,
       );
 
@@ -257,7 +257,7 @@ class WorkflowApprovalApiService {
       rethrow;
     }
   }
-  
+
   /// Alias for submitApproval (for backwards compatibility)
   Future<Map<String, dynamic>> updateStepStatus({
     required int stepId,
@@ -277,19 +277,19 @@ class WorkflowApprovalApiService {
   Future<List<WorkflowStepDetail>> getPendingApprovals(String assignedTo) async {
     try {
       print('📋 Loading pending approvals for: $assignedTo');
-      
+
       final response = await _dio.get(
-        '/api/workflow/workflow-steps/pending_approvals/',
+        '${ApiConfig.baseUrl}/workflow/workflow-steps/pending_approvals/',
         queryParameters: {'assigned_to': assignedTo},
       );
 
       if (response.statusCode == 200) {
         final data = response.data;
-        
+
         if (data['status'] == 'success' && data['data'] != null) {
           final approvals = data['data']['pending_approvals'] as List;
           print('✅ Found ${approvals.length} pending approvals');
-          
+
           return approvals
               .map((approval) => WorkflowStepDetail.fromJson(approval))
               .toList();

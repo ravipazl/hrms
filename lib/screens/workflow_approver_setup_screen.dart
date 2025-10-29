@@ -10,7 +10,7 @@ import '../services/workflow_api_service.dart';
 import '../services/workflow_execution_api_service.dart';
 import '../widgets/workflow_canvas.dart';
 import '../widgets/dialogs/node_edit_dialog.dart';
-
+import '../services/api_config.dart';
 class WorkflowApproverSetupScreen extends StatefulWidget {
   final int requisitionId;
   final int templateId;
@@ -222,7 +222,7 @@ class _WorkflowApproverSetupScreenState
         if (mounted) {
           // ✅ REDIRECT TO DJANGO REQUISITION LIST PAGE (Simple approach)
           print('✅ Redirecting to Django requisition list');
-          html.window.location.href = 'http://127.0.0.1:8000/requisition/';
+          html.window.location.href = '${ApiConfig.djangoBaseUrl}/requisition/';
         }
       } else {
         throw Exception(executionResult['message'] ?? 'Failed to trigger workflow');

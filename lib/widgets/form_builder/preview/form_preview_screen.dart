@@ -88,26 +88,38 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
 
   // Only validate and rebuild when needed (on submit)
   bool _validateForm() {
+    debugPrint('\n🔍 ═══════ STARTING FORM VALIDATION ═══════');
     setState(() {
       _validationErrors.clear();
       
       for (final field in widget.fields) {
+        debugPrint('\n📝 Field: ${field.label} (${field.id})');
+        debugPrint('   Type: ${field.type.name}');
+        debugPrint('   Required: ${field.required}');
+        debugPrint('   Props: ${field.props}');
+        
         // ✅ SKIP validation for rich text and table fields
         if (field.type == form_models.FieldType.richText || 
             field.type == form_models.FieldType.table) {
-          debugPrint('⏭️  Skipping validation for ${field.type.name} field: ${field.label}');
+          debugPrint('   ⏭️  SKIPPED: Special field type');
           continue;
         }
         
         final value = _formData[field.id];
+        debugPrint('   Current value: $value (${value.runtimeType})');
+        
         final errors = <String>[];
         
         // Required field validation (skip for rich text and table)
         if (field.required) {
+          debugPrint('   🔒 Checking required field...');
           if (value == null || 
               (value is String && value.trim().isEmpty) ||
               (value is List && value.isEmpty)) {
+            debugPrint('   ❌ FAILED: Required field is empty');
             errors.add('${field.label} is required');
+          } else {
+            debugPrint('   ✅ PASSED: Required field has value');
           }
         }
         
@@ -115,58 +127,159 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         if (value != null && value != '') {
           // Email validation
           if (field.type == form_models.FieldType.email) {
+            debugPrint('   📧 Checking email format...');
             if (value is String && value.isNotEmpty && !_isValidEmail(value)) {
+              debugPrint('   ❌ FAILED: Invalid email format');
               errors.add('Invalid email format');
+            } else {
+              debugPrint('   ✅ PASSED: Valid email format');
             }
           }
           
           // URL validation
           if (field.type == form_models.FieldType.url) {
+            debugPrint('   🔗 Checking URL format...');
             if (value is String && value.isNotEmpty && !_isValidUrl(value)) {
+              debugPrint('   ❌ FAILED: Invalid URL format');
               errors.add('Invalid URL format');
+            } else {
+              debugPrint('   ✅ PASSED: Valid URL format');
             }
           }
           
           // Number validation
           if (field.type == form_models.FieldType.number) {
+            debugPrint('   🔢 Checking number range...');
             final min = field.props['min'];
             final max = field.props['max'];
+            debugPrint('      Min: $min (${min.runtimeType})');
+            debugPrint('      Max: $max (${max.runtimeType})');
+            debugPrint('      Value: $value (${value.runtimeType})');
+            
             if (value is num) {
               if (min != null && value < min) {
+                debugPrint('   ❌ FAILED: $value < $min');
                 errors.add('Minimum value is $min');
+              } else if (min != null) {
+                debugPrint('   ✅ PASSED: $value >= $min');
               }
+              
               if (max != null && value > max) {
+                debugPrint('   ❌ FAILED: $value > $max');
                 errors.add('Maximum value is $max');
+              } else if (max != null) {
+                debugPrint('   ✅ PASSED: $value <= $max');
               }
+              
+              if (min == null && max == null) {
+                debugPrint('   ℹ️  No min/max constraints');
+              }
+            } else {
+              debugPrint('   ⚠️  WARNING: Value is not a number, cannot validate range');
             }
           }
           
           // Text length validation
           if (field.type == form_models.FieldType.text ||
               field.type == form_models.FieldType.textarea) {
+            debugPrint('   📏 Checking text length...');
             if (value is String) {
               final minLength = field.props['minLength'];
               final maxLength = field.props['maxLength'];
+              debugPrint('      MinLength: $minLength');
+              debugPrint('      MaxLength: $maxLength');
+              debugPrint('      Current length: ${value.length}');
+              
               if (minLength != null && value.length < minLength) {
+                debugPrint('   ❌ FAILED: ${value.length} < $minLength');
                 errors.add('Minimum length is $minLength characters');
+              } else if (minLength != null) {
+                debugPrint('   ✅ PASSED: ${value.length} >= $minLength');
               }
+              
               if (maxLength != null && value.length > maxLength) {
+                debugPrint('   ❌ FAILED: ${value.length} > $maxLength');
                 errors.add('Maximum length is $maxLength characters');
+              } else if (maxLength != null) {
+                debugPrint('   ✅ PASSED: ${value.length} <= $maxLength');
               }
+              
+              if (minLength == null && maxLength == null) {
+                debugPrint('   ℹ️  No length constraints');
+              }
+            }
+          }
+          
+          // Checkbox Group validation
+          if (field.type == form_models.FieldType.checkboxGroup) {
+            debugPrint('   ☑️  Checking checkbox group...');
+            if (value is List) {
+              final minSelections = field.props['minSelections'];
+              final maxSelections = field.props['maxSelections'];
+              debugPrint('      MinSelections: $minSelections');
+              debugPrint('      MaxSelections: $maxSelections');
+              debugPrint('      Selected count: ${value.length}');
+              
+              if (minSelections != null && value.length < minSelections) {
+                debugPrint('   ❌ FAILED: ${value.length} < $minSelections');
+                errors.add('Select at least $minSelections option(s)');
+              } else if (minSelections != null) {
+                debugPrint('   ✅ PASSED: ${value.length} >= $minSelections');
+              }
+              
+              if (maxSelections != null && value.length > maxSelections) {
+                debugPrint('   ❌ FAILED: ${value.length} > $maxSelections');
+                errors.add('Select at most $maxSelections option(s)');
+              } else if (maxSelections != null) {
+                debugPrint('   ✅ PASSED: ${value.length} <= $maxSelections');
+              }
+            }
+          }
+          
+          // Phone number validation
+          if (field.type == form_models.FieldType.tel) {
+            debugPrint('   📱 Checking phone number...');
+            final pattern = field.props['pattern'] as String?;
+            if (pattern != null && value is String) {
+              try {
+                final regex = RegExp(pattern);
+                if (!regex.hasMatch(value)) {
+                  debugPrint('   ❌ FAILED: Does not match pattern $pattern');
+                  errors.add('Invalid phone number format');
+                } else {
+                  debugPrint('   ✅ PASSED: Matches pattern $pattern');
+                }
+              } catch (e) {
+                debugPrint('   ⚠️  WARNING: Invalid regex pattern: $e');
+              }
+            } else {
+              debugPrint('   ℹ️  No pattern constraint');
             }
           }
         }
         
         if (errors.isNotEmpty) {
+          debugPrint('   ❌ Field has ${errors.length} error(s): $errors');
           _validationErrors[field.id] = errors;
+        } else {
+          debugPrint('   ✅ Field validation passed');
         }
       }
     });
     
-    debugPrint('📋 Validation complete. Errors: ${_validationErrors.length}');
+    debugPrint('\n📊 ═══════ VALIDATION COMPLETE ═══════');
+    debugPrint('Total fields validated: ${widget.fields.length}');
+    debugPrint('Fields with errors: ${_validationErrors.length}');
     if (_validationErrors.isNotEmpty) {
-      debugPrint('❌ Validation errors: $_validationErrors');
+      debugPrint('❌ Validation errors:');
+      _validationErrors.forEach((fieldId, errors) {
+        debugPrint('   - $fieldId: $errors');
+      });
+    } else {
+      debugPrint('✅ All validations passed!');
     }
+    debugPrint('═══════════════════════════════════════\n');
+    
     return _validationErrors.isEmpty;
   }
 
